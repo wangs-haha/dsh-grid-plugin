@@ -1,0 +1,8 @@
+# The Host half is plain ESM and the docs are prose; both are checked in as LF so
+# a Windows checkout does not rewrite every file on the first commit.
+* text=auto eol=lf
+
+*.png binary
+*.ico binary
+*.jpg binary
+*.woff2 binary

@@ -1,0 +1,70 @@
+{
+  "name": "@local/dsh-grid",
+  "version": "0.5.0",
+  "private": true,
+  "type": "module",
+  "description": "Database workbench for DeepSeek Harness: connections, schema browser, data grid, SQL console, saved queries, and read-only database context for the agent.",
+  "license": "Apache-2.0",
+  "exports": {
+    ".": "./index.js",
+    "./client": "./dist/client.js",
+    "./locale/*.json": "./locale/*.json",
+    "./icon": "./icon.svg"
+  },
+  "files": [
+    "index.js",
+    "lib",
+    "dist/client.js",
+    "cordis.patch.yml",
+    "locale/*.json",
+    "icon.svg",
+    "README.md",
+    "CHANGELOG.md"
+  ],
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.test.json --noEmit",
+    "pretest": "node scripts/build.mjs",
+    "test": "node --test",
+    "audit:ui": "node dev/audit.mjs",
+    "shot": "node dev/cdp-shot.mjs",
+    "locale": "node scripts/export-locale.mjs"
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web",
+      "immediately": true
+    }
+  },
+  "engines": {
+    "node": ">=22.13.0"
+  },
+  "optionalDependencies": {
+    "ioredis": "^5.11.1",
+    "mssql": "^11.0.2",
+    "mysql2": "^3.24.6",
+    "pg": "^8.23.1"
+  },
+  "peerDependencies": {
+    "@deepseek-ai/cordis": "^4.0.1"
+  },
+  "peerDependenciesMeta": {
+    "@deepseek-ai/cordis": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@types/jsdom": "^30.0.0",
+    "@types/node": "^24.19.2",
+    "@types/react": "^18.3.12",
+    "@types/react-dom": "^18.3.1",
+    "esbuild": "^0.28.2",
+    "jsdom": "^30.1.3",
+    "react": "18.3.1",
+    "react-dom": "18.3.1",
+    "typescript": "^5.7.2"
+  }
+}

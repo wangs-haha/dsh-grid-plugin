@@ -1,0 +1,13 @@
+# Grid — database workbench for DeepSeek Harness.
+#
+# The row below inserts the plugin. Its `config` map is optional; the defaults
+# are safe:
+#
+#   allowWrites: false   # gate the grid_execute Agent tool
+#   idleMinutes: 10      # close an idle database session
+- insert:
+    - id: grid
+      name: '@local/dsh-grid'
+      config:
+        allowWrites: false
+        idleMinutes: 10

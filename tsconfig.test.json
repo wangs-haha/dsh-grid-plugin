@@ -1,0 +1,9 @@
+{
+  "//": "Type-checks the test sources, which the client tsconfig does not include. Kept separate so the shipped client keeps DOM-only types.",
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "types": ["node"],
+    "lib": ["ES2021", "DOM", "DOM.Iterable"]
+  },
+  "include": ["test/**/*.ts"]
+}

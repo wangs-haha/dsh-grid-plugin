@@ -1,0 +1,123 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <title>Grid UI harness</title>
+    <style>
+      html, body { height: 100%; }
+      body { margin: 0; font-family: "Segoe UI", system-ui, sans-serif; background: var(--dsw-alias-bg-base); color: var(--dsw-alias-label-primary); }
+      #root { height: 100%; }
+
+      /* Host theme tokens, transcribed from the running DSH theme stylesheet
+       * (`body{…}` and `body[data-ds-dark-theme]{…}` in ui-theme). Keeping them
+       * verbatim is the point: an invented palette hides exactly the defects
+       * this harness is meant to catch. In light mode `bg-layer-1/2/3` really
+       * are identical to `bg-base`, and `border-l1` really is 4% black. */
+      :root {
+        --dsw-alias-bg-base: #151517;
+        --dsw-alias-bg-layer-1: #232324;
+        --dsw-alias-bg-layer-2: #2c2c2e;
+        --dsw-alias-bg-layer-3: #353638;
+        --dsw-alias-bg-overlay: #61666b;
+        --dsw-alias-border-l1: #ffffff0f;
+        --dsw-alias-border-l2: #ffffff1f;
+        --dsw-alias-border-l3: #ffffff29;
+        --dsw-alias-border-l4: #ffffff33;
+        --dsw-alias-label-primary: #f9fafb;
+        --dsw-alias-label-secondary: #cfd3d6;
+        --dsw-alias-label-tertiary: #adb2b8;
+        --dsw-alias-label-caption: #81858c;
+        --dsw-alias-label-primary-inverted: #353638;
+        --dsw-alias-brand-primary: #f9fafb;
+        --dsw-alias-state-business-primary: #4176e6;
+        --dsw-alias-interactive-bg-hover: #ffffff14;
+        --dsw-alias-interactive-bg-active: #ffffff24;
+        --dsw-alias-interactive-bg-hover-solid: #353638;
+        --dsw-alias-button-primary-fill: #f9fafb;
+        --dsw-alias-button-primary-hover: #ebeef2;
+        --dsw-alias-state-error-primary: #f25a5a;
+        --dsw-alias-state-success-primary: #22c55e;
+        --dsw-alias-state-warn-primary: #f0b429;
+        --dsw-alias-state-idle-primary: #545557;
+        --dsw-alias-bg-mask-3: #0000007a;
+        --dsw-alias-markdown-code-block: #1b1b1c;
+        --dsw-elevation-panel: 0 0 0 0.5px #ffffff33, 0 3px 8px #00000040, 0 0 16px #00000026;
+        --dsw-elevation-prominent: 0 0 0 0.5px #ffffff33, 0 10px 30px #00000073, 0 0 24px #0000004d;
+        --shiki-foreground: #f9fafb;
+        --shiki-token-constant: #4dabf7;
+        --shiki-token-string: #69db7c;
+        --shiki-token-comment: #adb5bd;
+        --shiki-token-keyword: #faa2c1;
+        --shiki-token-parameter: #ffa94d;
+        --shiki-token-function: #b197fc;
+        --shiki-token-punctuation: #ced4da;
+        --shiki-token-link: #74c0fc;
+      }
+
+      body.light {
+        --dsw-alias-bg-base: #ffffff;
+        --dsw-alias-bg-layer-1: #ffffff;
+        --dsw-alias-bg-layer-2: #ffffff;
+        --dsw-alias-bg-layer-3: #ffffff;
+        --dsw-alias-bg-overlay: #e9ecf2;
+        --dsw-alias-border-l1: #0000000a;
+        --dsw-alias-border-l2: #0000001a;
+        --dsw-alias-border-l3: #0000001f;
+        --dsw-alias-border-l4: #00000029;
+        --dsw-alias-label-primary: #0f1115;
+        --dsw-alias-label-secondary: #61666b;
+        --dsw-alias-label-tertiary: #81858c;
+        --dsw-alias-label-caption: #adb2b8;
+        --dsw-alias-label-primary-inverted: #ffffff;
+        --dsw-alias-brand-primary: #0f1115;
+        --dsw-alias-state-business-primary: #4176e6;
+        --dsw-alias-interactive-bg-hover: #2631480f;
+        --dsw-alias-interactive-bg-active: #2631481a;
+        --dsw-alias-interactive-bg-hover-solid: #f1f3f5;
+        --dsw-alias-button-primary-fill: #0f1115;
+        --dsw-alias-button-primary-hover: #43454a;
+        --dsw-alias-state-error-primary: #ec1313;
+        --dsw-alias-state-success-primary: #22c55e;
+        --dsw-alias-state-warn-primary: #f0b429;
+        --dsw-alias-state-idle-primary: #d4d4d4;
+        --dsw-alias-bg-mask-3: #0000007a;
+        --dsw-alias-markdown-code-block: #f9fafb;
+        --dsw-elevation-panel: 0 0 0 0.5px #00000029, 0 3px 8px #00000008, 0 0 16px #00000005;
+        --dsw-elevation-prominent: 0 0 0 0.5px #00000029, 0 10px 30px #00000026, 0 0 24px #00000014;
+        --shiki-foreground: #0f1115;
+        --shiki-token-constant: #1c7ed6;
+        --shiki-token-string: #2f9e44;
+        --shiki-token-comment: #868e96;
+        --shiki-token-keyword: #d6336c;
+        --shiki-token-parameter: #e8590c;
+        --shiki-token-function: #6741d9;
+        --shiki-token-punctuation: #495057;
+        --shiki-token-link: #1971c2;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script src="../node_modules/react/umd/react.development.js"></script>
+    <script src="../node_modules/react-dom/umd/react-dom.development.js"></script>
+    <script>
+      window.ReactJSXRuntime = {
+        Fragment: window.React.Fragment,
+        jsx: (type, props) => window.React.createElement(type, props),
+        jsxs: (type, props) => window.React.createElement(type, props),
+      }
+    </script>
+    <script>
+      // Classic-script module table: capture the factory the client registers.
+      window.__MODULE_FACTORY__ = null
+      window.__ModuleLoader__ = {
+        load(definition) {
+          window.__MODULE_FACTORY__ = definition.factory
+        },
+      }
+    </script>
+    <script src="../dev/fixtures.js"></script>
+    <script src="../dist/client.js"></script>
+    <script src="../dev/harness.js"></script>
+  </body>
+</html>
