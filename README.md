@@ -220,7 +220,7 @@ already multiplexes its own pool. Sessions expire after `idleMinutes` (default 1
 ## Architecture
 
 The Web panel is TypeScript + React, bundled by esbuild into a single classic script
-(`dist/client.js`, ~119 KB, React external). The Host half stays plain ESM.
+(`dist/client.js`, ~146 KB, React external). The Host half stays plain ESM.
 
 ```
 src/client/
