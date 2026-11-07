@@ -21,6 +21,7 @@ export function RelationsView(props: {
   kind: RelationKind
   onOpen: (relation: RelationNode) => void
   onQuery: (relation: RelationNode) => void
+  onNewQuery?: () => void
   notify: Notify
 }): JSX.Element {
   const { t, store } = props
@@ -74,6 +75,12 @@ export function RelationsView(props: {
           style={{ width: 180 }}
           onChange={(event) => setFilter(event.target.value)}
         />
+        {props.onNewQuery ? (
+          <Button size="sm" variant="tonal" onClick={props.onNewQuery} title={t('newQuery')}>
+            <Icon name="play" size={10} />
+            {t('newQuery')}
+          </Button>
+        ) : null}
         <IconButton
           icon="refresh"
           title={t('refresh')}
@@ -136,6 +143,7 @@ export function OverviewView(props: {
   database: DatabaseNode
   schemas: string[]
   onOpenRelations: (kind: RelationKind) => void
+  onNewQuery?: () => void
 }): JSX.Element {
   const { t, store } = props
   const connections = useStore(store.connections)
@@ -144,6 +152,7 @@ export function OverviewView(props: {
   const key = `${props.connectionId}|${props.database.name}|${props.schemas[0] ?? ''}`
   const relations = catalog.relations[key] ?? []
   const session = connections.sessions[props.connectionId]
+  const isSql = connection ? connection.engine !== 'redis' : false
 
   useEffect(() => {
     for (const schema of props.schemas.length ? props.schemas : ['']) {
@@ -162,6 +171,13 @@ export function OverviewView(props: {
         <span className="dg-mono">{props.database.name}</span>
         <span className="dg-chip">{connection?.engine ?? ''}</span>
         {session?.version ? <span className="dg-chip">{session.version}</span> : null}
+        <div className="dg-spacer" />
+        {isSql && props.onNewQuery ? (
+          <Button size="sm" variant="tonal" onClick={props.onNewQuery} title={t('newQuery')}>
+            <Icon name="play" size={10} />
+            {t('newQuery')}
+          </Button>
+        ) : null}
       </div>
       <div style={{ overflow: 'auto' }}>
         <div className="dg-cards">
@@ -361,10 +377,38 @@ export function QueriesView(props: {
 }): JSX.Element {
   const { t, store } = props
   const queries = useStore(store.queries)
+  const connections = useStore(store.connections)
+  const [filter, setFilter] = useState('')
 
   useEffect(() => {
     if (queries.items.length === 0) void store.queries.load()
   }, [queries.items.length, store])
+
+  const term = filter.trim().toLowerCase()
+
+  const categories = useMemo(() => {
+    const map = new Map<string, { key: string; connectionId: string; connectionName: string; engine?: string; database: string; items: SavedQuery[] }>()
+    for (const query of queries.items) {
+      if (term && !query.name.toLowerCase().includes(term) && !query.sql.toLowerCase().includes(term)) {
+        continue
+      }
+      const conn = connections.items.find((item) => item.id === query.connectionId)
+      const connectionName = conn?.name || query.connectionId || t('connections')
+      const database = query.database || 'default'
+      const key = `${connectionName} / ${database}`
+      const existing = map.get(key) ?? {
+        key,
+        connectionId: query.connectionId,
+        connectionName,
+        engine: conn?.engine,
+        database,
+        items: [],
+      }
+      existing.items.push(query)
+      map.set(key, existing)
+    }
+    return [...map.values()].sort((a, b) => a.key.localeCompare(b.key))
+  }, [queries.items, connections.items, term, t])
 
   return (
     <div className="dg-content">
@@ -373,6 +417,12 @@ export function QueriesView(props: {
         <span>{t('queries')}</span>
         <span className="dg-chip">{queries.items.length}</span>
         <div className="dg-spacer" />
+        <Input
+          value={filter}
+          placeholder={t('search')}
+          style={{ width: 180 }}
+          onChange={(event) => setFilter(event.target.value)}
+        />
         <IconButton icon="refresh" title={t('refresh')} onClick={() => void store.queries.load()} />
       </div>
       {queries.error ? <Banner tone="error">{queries.error}</Banner> : null}
@@ -381,50 +431,64 @@ export function QueriesView(props: {
           <div className="dg-sqlmsg">
             <Spinner label={t('loading')} />
           </div>
-        ) : queries.items.length === 0 ? (
+        ) : categories.length === 0 ? (
           <Empty title={t('noQueries')} />
         ) : (
-          <table className="dg-list">
-            <thead>
-              <tr>
-                <th>{t('queryName')}</th>
-                <th>{t('database')}</th>
-                <th>{t('source')}</th>
-                <th>{t('updatedAt')}</th>
-                <th style={{ width: 96 }} />
-              </tr>
-            </thead>
-            <tbody>
-              {queries.items.map((query) => (
-                <tr key={query.id} onDoubleClick={() => props.onOpen(query)}>
-                  <td>
-                    <span className="dg-list-name">
-                      <Icon name="bookmark" size={11} />
-                      <span>{query.name}</span>
-                    </span>
-                  </td>
-                  <td className="dg-mono dg-muted">{query.database || '—'}</td>
-                  <td>
-                    <span className="dg-tag">{query.scope}</span>
-                  </td>
-                  <td className="dg-muted">{relativeTime(query.updatedAt)}</td>
-                  <td>
-                    <span className="dg-row" style={{ gap: 2 }}>
-                      <IconButton icon="play" title={t('openInEditor')} size={11} onClick={() => props.onOpen(query)} />
-                      <IconButton
-                        icon="trash"
-                        title={t('delete')}
-                        size={11}
-                        onClick={() => {
-                          void store.queries.remove(query.id).catch((cause: unknown) => props.notify(String(cause), 'error'))
-                        }}
-                      />
-                    </span>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 14, padding: '12px 16px' }}>
+            {categories.map((category) => (
+              <div key={category.key} className="dg-query-category">
+                <div className="dg-query-category-head">
+                  <span className="dg-query-category-icon">
+                    <Icon name="database" size={12} />
+                  </span>
+                  <span className="dg-query-category-title">{category.connectionName}</span>
+                  {category.engine ? <span className="dg-badge">{category.engine}</span> : null}
+                  <span className="dg-query-category-sep">/</span>
+                  <span className="dg-query-category-db">{category.database}</span>
+                  <span className="dg-badge" style={{ marginLeft: 'auto' }}>{category.items.length}</span>
+                </div>
+                <table className="dg-list">
+                  <thead>
+                    <tr>
+                      <th>{t('queryName')}</th>
+                      <th>{t('source')}</th>
+                      <th>{t('updatedAt')}</th>
+                      <th style={{ width: 96 }} />
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {category.items.map((query) => (
+                      <tr key={query.id} onDoubleClick={() => props.onOpen(query)}>
+                        <td>
+                          <span className="dg-list-name">
+                            <Icon name="bookmark" size={11} />
+                            <span style={{ fontWeight: 500 }}>{query.name}</span>
+                          </span>
+                        </td>
+                        <td>
+                          <span className="dg-tag">{query.scope}</span>
+                        </td>
+                        <td className="dg-muted">{relativeTime(query.updatedAt)}</td>
+                        <td>
+                          <span className="dg-row" style={{ gap: 2 }}>
+                            <IconButton icon="play" title={t('openInEditor')} size={11} onClick={() => props.onOpen(query)} />
+                            <IconButton
+                              icon="trash"
+                              title={t('delete')}
+                              size={11}
+                              onClick={() => {
+                                void store.queries.remove(query.id).catch((cause: unknown) => props.notify(String(cause), 'error'))
+                              }}
+                            />
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ))}
+          </div>
         )}
       </div>
     </div>

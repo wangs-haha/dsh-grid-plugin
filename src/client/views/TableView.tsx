@@ -13,6 +13,7 @@ interface TableViewProps {
   tab: Extract<Tab, { kind: 'table' }>
   engine: string
   notify: (message: string, tone?: 'info' | 'error' | 'success') => void
+  onNewQuery?: () => void
 }
 
 const PAGE_SIZES = [50, 100, 200, 500]
@@ -87,6 +88,7 @@ export function TableView(props: TableViewProps): JSX.Element {
           notify={props.notify}
           meta={meta}
           onRefreshMeta={() => setMetaTick((value) => value + 1)}
+          onNewQuery={props.onNewQuery}
         />
       ) : (
         <StructureView t={t} meta={meta} error={metaError} onRefresh={() => setMetaTick((value) => value + 1)} />
@@ -111,6 +113,7 @@ function DataGrid({
   notify,
   meta,
   onRefreshMeta,
+  onNewQuery,
 }: {
   t: (k: string) => string
   scope: Scope
@@ -118,6 +121,7 @@ function DataGrid({
   notify: TableViewProps['notify']
   meta: DescribeResult | null
   onRefreshMeta: () => void
+  onNewQuery?: () => void
 }): JSX.Element {
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(100)
@@ -580,6 +584,12 @@ function DataGrid({
         {where ? (
           <Button size="sm" variant="ghost" onClick={() => { setWhereDraft(''); setWhere(''); setConditions([]); setPage(1) }}>
             {t('clear')}
+          </Button>
+        ) : null}
+        {onNewQuery && engine !== 'redis' ? (
+          <Button size="sm" variant="tonal" onClick={onNewQuery} title={t('newQuery')}>
+            <Icon name="play" size={10} />
+            {t('newQuery')}
           </Button>
         ) : null}
         <div className="dg-spacer" />

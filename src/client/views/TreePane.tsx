@@ -9,7 +9,7 @@ import { useMemo, useState } from 'react'
 
 import type { Connection, DatabaseNode, RelationNode } from '../lib/types'
 import { useStore, type GridStore } from '../store'
-import { Icon, IconButton, StatusDot } from '../ui/kit'
+import { Button, Icon, IconButton, StatusDot } from '../ui/kit'
 
 const COLOR_VALUE: Record<string, string> = {
   red: 'var(--dsw-alias-state-error-primary)',
@@ -21,11 +21,12 @@ interface TreePaneProps {
   store: GridStore
   t: (key: string) => string
   selectedDatabaseKey: string
-  onNewConnection: () => void
+  onNewConnection?: () => void
   onSelectDatabase: (connection: Connection, database: DatabaseNode) => void
   onOpenTable: (connection: Connection, database: DatabaseNode, schema: string, relation: RelationNode) => void
   onConnectionMenu: (event: React.MouseEvent, connection: Connection) => void
   onDatabaseMenu: (event: React.MouseEvent, connection: Connection, database: DatabaseNode) => void
+  onNewQuery?: (connection: Connection, database: DatabaseNode) => void
 }
 
 export function TreePane(props: TreePaneProps): JSX.Element {
@@ -177,6 +178,14 @@ export function TreePane(props: TreePaneProps): JSX.Element {
     )
   }
 
+  const [selectedConnId, selectedDbName] = (props.selectedDatabaseKey || '').split('|')
+  const selectedConn = connections.items.find((item) => item.id === selectedConnId)
+  const isSqlEngine = selectedConn ? selectedConn.engine !== 'redis' : false
+  const canNewQuery = Boolean(selectedConn && selectedDbName && isSqlEngine)
+  const selectedDb = selectedConn && selectedDbName
+    ? store.connections.session(selectedConn.id).databases.find((d) => d.name === selectedDbName) ?? { name: selectedDbName, schemas: [''] }
+    : null
+
   return (
     <div className="dg-tree">
       <div className="dg-panehead">
@@ -193,13 +202,23 @@ export function TreePane(props: TreePaneProps): JSX.Element {
             void store.meta.load()
           }}
         />
-        <IconButton icon="plus" title={t('newConnection')} size={11} onClick={props.onNewConnection} />
       </div>
-      <div className="dg-row" style={{ padding: '4px 6px' }}>
+      <div className="dg-row" style={{ padding: '4px 6px', gap: 4 }}>
         <div className="dg-search">
           <Icon name="search" size={10} />
           <input value={filter} placeholder={t('search')} onChange={(event) => setFilter(event.target.value)} />
         </div>
+        {canNewQuery && props.onNewQuery && selectedConn && selectedDb ? (
+          <Button
+            size="sm"
+            variant="tonal"
+            title={t('newQuery')}
+            onClick={() => props.onNewQuery?.(selectedConn, selectedDb)}
+          >
+            <Icon name="play" size={10} />
+            {t('newQuery')}
+          </Button>
+        ) : null}
       </div>
       <div className="dg-tree-scroll">
         {connections.loading && connections.items.length === 0 ? (

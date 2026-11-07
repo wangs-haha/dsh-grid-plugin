@@ -149,16 +149,19 @@ export function GridPanel({ t }: GridPanelProps): JSX.Element {
     })
   }
 
-  const openQuery = (connection?: Connection | null, sql?: string): void => {
-    const target = connection ?? (scope ? connectionOf(scope.connectionId) : connections.items[0])
-    if (!target) return setDialog({ kind: 'connection' })
-    const database = scope && scope.connectionId === target.id ? scope.database : (store.connections.session(target.id).databases[0]?.name ?? '')
+  const openQuery = (connection?: Connection | null, databaseName?: string, sql?: string): void => {
+    const target = connection ?? (scope ? connectionOf(scope.connectionId) : null)
+    if (!target) return
+    if (target.engine === 'redis') return
+    const database = databaseName ?? (scope && scope.connectionId === target.id ? scope.database : (store.connections.session(target.id).databases[0]?.name ?? ''))
+    if (!database) return
+    const count = tabs.tabs.filter((tab) => tab.kind === 'sql').length + 1
     store.tabs.open({
-      id: `sql:${target.id}:${Date.now()}`,
+      id: `sql:${target.id}:${database}:${Date.now()}`,
       kind: 'sql',
       connectionId: target.id,
       database,
-      title: `${tr('query')} ${tabs.tabs.filter((tab) => tab.kind === 'sql').length + 1}`,
+      title: `${tr('query')} ${count} (${database})`,
       initialSql: sql ?? '',
     })
   }
@@ -213,7 +216,9 @@ export function GridPanel({ t }: GridPanelProps): JSX.Element {
             ),
         },
         { separator: true },
-        { label: tr('newQuery'), icon: 'play', onClick: () => openQuery(connection) },
+        ...(connection.engine !== 'redis'
+          ? [{ label: tr('newQuery'), icon: 'play', onClick: () => openQuery(connection) }]
+          : []),
         { label: tr('edit'), icon: 'pencil', onClick: () => setDialog({ kind: 'connection', initial: connection }) },
         {
           label: tr('refresh'),
@@ -236,7 +241,9 @@ export function GridPanel({ t }: GridPanelProps): JSX.Element {
         { label: tr('views'), icon: 'view', onClick: () => { setScope({ connectionId: connection.id, database: database.name, schema: database.schemas[0] ?? '' }); openList('relations', 'view') } },
         { label: tr('functions'), icon: 'function', onClick: () => { setScope({ connectionId: connection.id, database: database.name, schema: database.schemas[0] ?? '' }); openList('routines') } },
         { separator: true },
-        { label: tr('newQuery'), icon: 'play', onClick: () => openQuery(connection) },
+        ...(connection.engine !== 'redis'
+          ? [{ label: tr('newQuery'), icon: 'play', onClick: () => openQuery(connection, database.name) }]
+          : []),
       ],
     })
   }
@@ -255,17 +262,7 @@ export function GridPanel({ t }: GridPanelProps): JSX.Element {
         </span>
         <span className="dg-brand-title">{tr('panel')}</span>
       </div>
-      <div className="dg-toolgroup">
-        <Button variant="primary" onClick={() => setDialog({ kind: 'connection' })} title={tr('newConnection')}>
-          <Icon name="plus" size={11} />
-          {tr('newConnection')}
-        </Button>
-        <Button variant="tonal" onClick={() => openQuery()} title={tr('newQuery')}>
-          <Icon name="play" size={10} />
-          {tr('newQuery')}
-        </Button>
-      </div>
-      <span className="dg-toolbar-divider" />
+      <div className="dg-toolbar-divider" />
       <div className="dg-toolgroup dg-obj-pills">
         {OBJECT_ACTIONS.map((action) => (
           <Button
@@ -295,16 +292,15 @@ export function GridPanel({ t }: GridPanelProps): JSX.Element {
             : tr('workspaces')}
         </span>
       </button>
-      {meta.meta?.allowWrites ? (
-        <span className="dg-chip dg-chip-writable" title={tr('writesEnabled')}>
-          {tr('writesEnabled')}
-        </span>
-      ) : (
-        <span className="dg-chip" title={tr('readOnlyForAgent')}>
-          {tr('readOnlyForAgent')}
-        </span>
-      )}
       <IconButton icon="refresh" title={tr('refresh')} onClick={() => { void store.connections.load(); void store.meta.load() }} />
+      <Button
+        className="dg-btn-new-conn"
+        onClick={() => setDialog({ kind: 'connection' })}
+        title={tr('newConnection')}
+      >
+        <Icon name="plus" size={11} />
+        {tr('newConnection')}
+      </Button>
     </div>
   )
 
@@ -378,11 +374,21 @@ export function GridPanel({ t }: GridPanelProps): JSX.Element {
             database={database}
             schemas={database.schemas}
             onOpenRelations={(kind) => openList('relations', kind)}
+            onNewQuery={() => openQuery(connection, tab.database)}
           />
         )
       }
       case 'table':
-        return <TableView key={tab.id} t={tr} tab={tab} engine={engineOf(tab.connectionId)} notify={notify} />
+        return (
+          <TableView
+            key={tab.id}
+            t={tr}
+            tab={tab}
+            engine={engineOf(tab.connectionId)}
+            notify={notify}
+            onNewQuery={() => openQuery(connection, tab.database)}
+          />
+        )
       case 'sql':
         return (
           <SqlView
@@ -407,7 +413,8 @@ export function GridPanel({ t }: GridPanelProps): JSX.Element {
             onOpen={(relation) => {
               if (connection) openTable(connection, tab.database, tab.schema, relation)
             }}
-            onQuery={(relation) => openQuery(connection, selectFrom(engineOf(tab.connectionId), relation.name))}
+            onQuery={(relation) => openQuery(connection, tab.database, selectFrom(engineOf(tab.connectionId), relation.name))}
+            onNewQuery={() => openQuery(connection, tab.database)}
             notify={notify}
           />
         )
@@ -465,7 +472,6 @@ export function GridPanel({ t }: GridPanelProps): JSX.Element {
           <TreePane
             store={store}
             t={tr}
-            onNewConnection={() => setDialog({ kind: 'connection' })}
             selectedDatabaseKey={activeDatabaseKey}
             onSelectDatabase={openDatabase}
             onOpenTable={(connection, database, schema, relation) =>
@@ -473,6 +479,7 @@ export function GridPanel({ t }: GridPanelProps): JSX.Element {
             }
             onConnectionMenu={connectionMenu}
             onDatabaseMenu={databaseMenu}
+            onNewQuery={(connection, database) => openQuery(connection, database.name)}
           />
         </div>
         <Splitter width={treeWidth} setWidth={setTreeWidth} min={200} max={420} />
@@ -481,13 +488,9 @@ export function GridPanel({ t }: GridPanelProps): JSX.Element {
           {tabs.tabs.length === 0 ? (
             <Empty title={tr('selectConnection')} hint={tr('agentHint')}>
               <div className="dg-welcome-actions">
-                <Button variant="primary" onClick={() => setDialog({ kind: 'connection' })}>
+                <Button className="dg-btn-new-conn" onClick={() => setDialog({ kind: 'connection' })}>
                   <Icon name="plus" size={11} />
                   {tr('newConnection')}
-                </Button>
-                <Button variant="tonal" onClick={() => openQuery()}>
-                  <Icon name="play" size={10} />
-                  {tr('newQuery')}
                 </Button>
                 <Button variant="ghost" onClick={() => setDialog({ kind: 'workspaces' })}>
                   <Icon name="link" size={11} />
