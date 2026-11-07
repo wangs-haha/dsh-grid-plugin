@@ -131,14 +131,17 @@ export function apply(ctx, config = {}) {
         allowWrites,
         resolveBinding: async (agent) => {
           if (!agent) return null
+          const workspaceId = agent.workspaceId || agent.workspace?.id || ''
           const workingDirectory = typeof ctx.get === 'function' ? ctx.get('workingDirectory') : undefined
-          if (!workingDirectory || typeof workingDirectory.ensure !== 'function') return null
-          try {
-            const cwd = await workingDirectory.ensure(agent)
-            return project.resolveByPath(cwd)
-          } catch {
-            return null
+          let cwd = ''
+          if (workingDirectory && typeof workingDirectory.ensure === 'function') {
+            try {
+              cwd = await workingDirectory.ensure(agent)
+            } catch {
+              // agent may not have an active workingDirectory, fallback to workspaceId
+            }
           }
+          return project.resolve({ cwd, workspaceId })
         },
         log: (message) => ctx.logger?.info?.(message),
       })
@@ -168,34 +171,48 @@ export function apply(ctx, config = {}) {
   // Project binding: a short, explicit block that tells the agent which database
   // this profile is about and that its access is read-only.
   const systemPrompt = typeof ctx.get === 'function' ? ctx.get('systemPrompt') : undefined
-  if (systemPrompt) {
+  if (systemPrompt && typeof systemPrompt.section === 'function') {
     ctx.effect(
-      () =>
-        systemPrompt.section({
-          name: 'grid-project',
-          order: 95,
-          text: () => {
-            const bindings = project.list()
-            if (bindings.length === 0) return ''
-            const lines = ['## Bound databases (Grid)']
-            for (const binding of bindings) {
-              const record = getRecord(binding.connectionId)
-              if (!record) continue
-              lines.push(
-                '- ' +
-                  (record.name || binding.connectionId) +
-                  ' (' + record.engine + (binding.database ? ', ' + binding.database : '') + ')' +
-                  ' → workspace ' + (binding.workspacePath || binding.workspaceId),
-              )
-            }
-            if (lines.length === 1) return ''
-            lines.push(
-              'In a bound workspace, call grid_query / grid_inspect without connectionId: the binding supplies it.',
-              allowWrites ? 'Write access is enabled.' : 'Access is read-only.',
-            )
-            return lines.join('\n')
-          },
-        }),
+      () => {
+        try {
+          const reg = systemPrompt.section({
+            name: 'grid-project',
+            order: 95,
+            text: () => {
+              try {
+                const bindings = project.list()
+                if (!Array.isArray(bindings) || bindings.length === 0) return ''
+                const lines = ['## Bound databases (Grid)']
+                for (const binding of bindings) {
+                  if (!binding?.connectionId) continue
+                  const record = getRecord(binding.connectionId)
+                  if (!record) continue
+                  lines.push(
+                    '- ' +
+                      (record.name || binding.connectionId) +
+                      ' (' + record.engine + (binding.database ? ', ' + binding.database : '') + ')' +
+                      ' → workspace ' + (binding.workspacePath || binding.workspaceId),
+                  )
+                }
+                if (lines.length === 1) return ''
+                lines.push(
+                  'In a bound workspace, call grid_query / grid_inspect without connectionId: the binding supplies it.',
+                  allowWrites ? 'Write access is enabled.' : 'Access is read-only.',
+                )
+                return lines.join('\n')
+              } catch {
+                return ''
+              }
+            },
+          })
+          return () => {
+            if (typeof reg === 'function') reg()
+            else if (typeof reg?.dispose === 'function') reg.dispose()
+          }
+        } catch {
+          return () => {}
+        }
+      },
       'grid: project context',
     )
   }

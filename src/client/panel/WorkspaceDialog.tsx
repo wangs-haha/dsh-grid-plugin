@@ -52,7 +52,16 @@ export function WorkspaceDialog(props: WorkspaceDialogProps): JSX.Element {
         database: value.database,
       })
       await store.meta.load()
-      props.notify(t('projectBound').replace('{name}', value.connectionId).replace('{database}', value.database), 'success')
+      const targetConn = connections.items.find((c) => c.id === value.connectionId)
+      const connName = targetConn?.name || value.connectionId
+      const dbSuffix = value.database ? ` (${value.database})` : ''
+      const rawNotice = t('projectBound')
+      const msg = rawNotice
+        .replace('{name}', connName)
+        .replace('（{database}）', dbSuffix)
+        .replace('({database})', dbSuffix)
+        .replace('{database}', value.database || '')
+      props.notify(msg, 'success')
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : String(cause))
     } finally {
@@ -65,6 +74,7 @@ export function WorkspaceDialog(props: WorkspaceDialogProps): JSX.Element {
     try {
       await api.unbindProject(workspaceId)
       await store.meta.load()
+      props.notify(t('unbindProject') + ' ✓', 'info')
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : String(cause))
     } finally {
@@ -74,12 +84,13 @@ export function WorkspaceDialog(props: WorkspaceDialogProps): JSX.Element {
 
   return (
     <Modal
+      icon="link"
       title={t('workspaces')}
+      subtitle={t('agentHint')}
       onClose={props.onClose}
-      width={660}
+      width={680}
       footer={<Button onClick={props.onClose}>{t('close')}</Button>}
     >
-      <Banner>{t('agentHint')}</Banner>
       {error ? (
         <Banner tone="error" onClose={() => setError('')}>
           {error}
@@ -88,35 +99,66 @@ export function WorkspaceDialog(props: WorkspaceDialogProps): JSX.Element {
       {workspaces.length === 0 ? (
         <Empty title={t('noWorkspaces')} />
       ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxHeight: '54vh', overflow: 'auto' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12, maxHeight: '60vh', overflow: 'auto', padding: '2px 0' }}>
           {workspaces.map((workspace) => {
             const binding = bindingOf(workspace.id)
             const value = valueOf(workspace.id)
+            const activeConn = connections.items.find((c) => c.id === value.connectionId)
+            const knownDbs = value.connectionId ? store.connections.session(value.connectionId).databases : []
+
             return (
               <div key={workspace.id} className="dg-ws-row">
                 <div className="dg-ws-head">
-                  <Icon name="folder" size={12} />
-                  <span className="dg-ws-title">{workspace.title}</span>
-                  <span className="dg-ws-path" title={workspace.path}>
-                    {workspace.path}
+                  <span className="dg-ws-icon">
+                    <Icon name="folder" size={14} />
                   </span>
+                  <div className="dg-truncate" style={{ flex: 1, minWidth: 0 }}>
+                    <div className="dg-ws-title">{workspace.title}</div>
+                    <div className="dg-ws-path" title={workspace.path}>
+                      {workspace.path}
+                    </div>
+                  </div>
+                  {binding ? (
+                    <span className="dg-status-badge dg-status-badge-ok">
+                      <span className="dg-dot dg-dot-open" />
+                      {t('boundProject')}
+                    </span>
+                  ) : (
+                    <span className="dg-status-badge">
+                      {t('projectUnbound')}
+                    </span>
+                  )}
                 </div>
+
                 {binding ? (
-                  <div className="dg-tags">
-                    <span className="dg-tag dg-tag-strong">{binding.connectionName || binding.connectionId}</span>
-                    {binding.database ? <span className="dg-tag">{binding.database}</span> : null}
-                    <span className="dg-tag">{t('readOnlyForAgent')}</span>
+                  <div className="dg-tags" style={{ marginTop: 2, marginBottom: 4 }}>
+                    <span className="dg-tag dg-tag-strong">
+                      <Icon name="database" size={10} />
+                      {binding.connectionName || binding.connectionId}
+                    </span>
+                    {binding.database ? (
+                      <span className="dg-tag">
+                        {binding.database}
+                      </span>
+                    ) : null}
+                    <span className="dg-tag dg-tag-accent">
+                      {t('readOnlyForAgent')}
+                    </span>
                   </div>
-                ) : (
-                  <div className="dg-muted dg-hint">
-                    {t('projectUnbound')}
-                  </div>
-                )}
+                ) : null}
+
                 <div className="dg-ws-form">
                   <Field label={t('connections')}>
                     <Select
                       value={value.connectionId}
-                      onChange={(event) => update(workspace.id, { connectionId: event.target.value })}
+                      onChange={(event) => {
+                        const newConnId = event.target.value
+                        const newConn = connections.items.find((c) => c.id === newConnId)
+                        update(workspace.id, {
+                          connectionId: newConnId,
+                          database: newConn?.database || '',
+                        })
+                      }}
                     >
                       <option value="">—</option>
                       {connections.items.map((connection) => (
@@ -126,13 +168,29 @@ export function WorkspaceDialog(props: WorkspaceDialogProps): JSX.Element {
                       ))}
                     </Select>
                   </Field>
+
                   <Field label={t('database')}>
-                    <Input
-                      value={value.database}
-                      placeholder="optional"
-                      onChange={(event) => update(workspace.id, { database: event.target.value })}
-                    />
+                    {knownDbs.length > 0 ? (
+                      <Select
+                        value={value.database}
+                        onChange={(event) => update(workspace.id, { database: event.target.value })}
+                      >
+                        <option value="">{activeConn?.database ? `${activeConn.database} (default)` : '—'}</option>
+                        {knownDbs.map((db) => (
+                          <option key={db.name} value={db.name}>
+                            {db.name}
+                          </option>
+                        ))}
+                      </Select>
+                    ) : (
+                      <Input
+                        value={value.database}
+                        placeholder={activeConn?.database || 'optional'}
+                        onChange={(event) => update(workspace.id, { database: event.target.value })}
+                      />
+                    )}
                   </Field>
+
                   <div className="dg-ws-actions">
                     <Button
                       size="sm"
@@ -140,6 +198,7 @@ export function WorkspaceDialog(props: WorkspaceDialogProps): JSX.Element {
                       disabled={busy === workspace.id || !value.connectionId}
                       onClick={() => void bind(workspace.id, workspace.path)}
                     >
+                      <Icon name="link" size={11} />
                       {t('bindProject')}
                     </Button>
                     {binding ? (

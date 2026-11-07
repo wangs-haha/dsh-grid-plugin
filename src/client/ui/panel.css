@@ -150,9 +150,9 @@
 /* toolbar ------------------------------------------------------------------ */
 .dg-toolbar {
   display: flex; align-items: center; gap: var(--dg-sp-2);
-  padding: var(--dg-sp-3) var(--dg-sp-5);
-  padding-left: max(var(--dg-sp-5), var(--dsh-frame-leading-clearance, 12px));
-  min-height: 44px;
+  padding: var(--dg-sp-2) var(--dg-sp-4);
+  padding-left: max(var(--dg-sp-4), var(--dsh-frame-leading-clearance, 12px));
+  min-height: 48px;
   border-bottom: 1px solid var(--dg-line);
   background: var(--dg-surface);
   flex: none;
@@ -163,8 +163,14 @@
 }
 .dg-toolgroup { display: flex; align-items: center; gap: var(--dg-sp-1); }
 .dg-toolbar-divider { width: 1px; height: 20px; background: var(--dg-line); margin: 0 var(--dg-sp-2); flex: none; }
-.dg-brand { display: flex; align-items: center; gap: var(--dg-sp-3); font-weight: 600; font-size: var(--dg-fs-md); white-space: nowrap; margin-right: var(--dg-sp-2); }
-.dg-brand svg { color: var(--dg-accent); }
+.dg-brand { display: flex; align-items: center; gap: var(--dg-sp-2); font-weight: 600; font-size: var(--dg-fs-md); white-space: nowrap; margin-right: var(--dg-sp-2); }
+.dg-brand-badge {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 26px; height: 26px; border-radius: 8px;
+  background: color-mix(in srgb, var(--dg-accent) 14%, transparent);
+  color: var(--dg-accent); flex: none;
+}
+.dg-brand-title { font-weight: 600; letter-spacing: -0.01em; color: var(--dg-text); }
 
 /* buttons ------------------------------------------------------------------ */
 .dg-btn {
@@ -175,20 +181,35 @@
   color: var(--dg-text);
   font-size: var(--dg-fs-sm); cursor: pointer; white-space: nowrap;
   transition: background var(--dg-dur-1) var(--dg-ease), border-color var(--dg-dur-1) var(--dg-ease),
-    color var(--dg-dur-1) var(--dg-ease);
+    color var(--dg-dur-1) var(--dg-ease), transform var(--dg-dur-1) var(--dg-ease);
 }
 .dg-btn:hover:not(:disabled) { background: var(--dg-hover); }
-.dg-btn:active:not(:disabled) { background: var(--dg-pressed); }
+.dg-btn:active:not(:disabled) { background: var(--dg-pressed); transform: scale(0.98); }
 .dg-btn:disabled { opacity: 0.42; cursor: default; }
 /* The host's solid call-to-action: black on white in light mode, near-white on
    dark in dark mode. */
 .dg-btn-primary {
-  background: var(--dsw-alias-button-primary-fill, var(--dg-text));
-  border-color: var(--dsw-alias-button-primary-fill, var(--dg-text));
-  color: var(--dsw-alias-label-primary-inverted, var(--dg-bg));
+  background: var(--dsw-alias-button-primary-fill, var(--dg-accent));
+  border-color: var(--dsw-alias-button-primary-fill, var(--dg-accent));
+  color: var(--dsw-alias-label-primary-inverted, #fff);
+  font-weight: 500;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+}
+.dg-btn-primary:hover:not(:disabled) {
+  background: var(--dsw-alias-button-primary-hover, color-mix(in srgb, var(--dg-accent) 85%, #000));
+  border-color: var(--dsw-alias-button-primary-hover, color-mix(in srgb, var(--dg-accent) 85%, #000));
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.15);
+}
+.dg-btn-tonal {
+  background: color-mix(in srgb, var(--dg-accent) 12%, transparent);
+  border-color: transparent;
+  color: var(--dg-text);
   font-weight: 500;
 }
-.dg-btn-primary:hover:not(:disabled) { background: var(--dsw-alias-button-primary-hover, var(--dg-text-2)); border-color: var(--dsw-alias-button-primary-hover, var(--dg-text-2)); }
+.dg-btn-tonal:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--dg-accent) 20%, transparent);
+  color: var(--dg-text);
+}
 .dg-btn-danger { color: var(--dg-error); border-color: color-mix(in srgb, var(--dg-error) 38%, var(--dg-line)); }
 .dg-btn-danger:hover:not(:disabled) { background: var(--dg-error-soft); }
 .dg-btn-ghost { background: transparent; border-color: transparent; color: var(--dg-text-2); }
@@ -202,6 +223,44 @@
   font-weight: 600;
 }
 .dg-btn-active:hover:not(:disabled) { background: color-mix(in srgb, var(--dg-accent) 18%, transparent); }
+
+/* conversation binding assist chip ----------------------------------------- */
+.dg-binding-chip {
+  display: inline-flex; align-items: center; gap: 6px;
+  height: 28px; padding: 0 12px;
+  border: 1px solid var(--dg-line); border-radius: var(--dg-r-pill);
+  background: var(--dg-bg); color: var(--dg-text-2);
+  font-size: var(--dg-fs-xs); font-weight: 500; cursor: pointer; white-space: nowrap;
+  transition: all var(--dg-dur-2) var(--dg-ease);
+}
+.dg-binding-chip:hover {
+  background: var(--dg-hover); color: var(--dg-text);
+  border-color: color-mix(in srgb, var(--dg-accent) 30%, var(--dg-line));
+  transform: translateY(-1px); box-shadow: 0 2px 4px rgba(0,0,0,0.06);
+}
+.dg-binding-chip-active {
+  background: color-mix(in srgb, var(--dg-success) 10%, var(--dg-bg));
+  border-color: color-mix(in srgb, var(--dg-success) 35%, transparent);
+  color: var(--dg-text);
+}
+.dg-binding-chip-active:hover {
+  background: color-mix(in srgb, var(--dg-success) 16%, var(--dg-bg));
+  border-color: color-mix(in srgb, var(--dg-success) 50%, transparent);
+}
+.dg-binding-chip-label {
+  max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+
+.dg-chip-writable {
+  background: color-mix(in srgb, var(--dg-warn) 12%, transparent);
+  color: var(--dg-warn); border-radius: var(--dg-r-pill);
+  padding: 3px 9px; font-size: var(--dg-fs-xs); font-weight: 500; display: inline-flex; align-items: center; gap: 4px;
+}
+.dg-chip-readonly {
+  background: color-mix(in srgb, var(--dg-accent) 12%, transparent);
+  color: var(--dg-accent); border-radius: var(--dg-r-pill);
+  padding: 3px 9px; font-size: var(--dg-fs-xs); font-weight: 500; display: inline-flex; align-items: center; gap: 4px;
+}
 
 .dg-iconbtn {
   display: inline-flex; align-items: center; justify-content: center;
@@ -272,13 +331,18 @@
 .dg-dot-busy { background: var(--dg-warn); }
 .dg-dot-error { background: var(--dg-error); }
 .dg-search {
-  display: flex; align-items: center; gap: var(--dg-sp-1);
-  height: var(--dg-ctl); padding: 0 var(--dg-sp-2);
-  border: 1px solid var(--dg-line); border-radius: var(--dg-r-xs);
-  background: var(--dg-bg); color: var(--dg-text-3); flex: 1; min-width: 0;
-  transition: border-color var(--dg-dur-1) var(--dg-ease);
+  display: flex; align-items: center; gap: var(--dg-sp-2);
+  height: 30px; padding: 0 var(--dg-sp-4);
+  border: 1px solid var(--dg-line-soft); border-radius: var(--dg-r-pill);
+  background: var(--dg-surface-2); color: var(--dg-text-3); flex: 1; min-width: 0;
+  transition: all var(--dg-dur-2) var(--dg-ease);
 }
-.dg-search:focus-within { border-color: var(--dg-accent); }
+.dg-search:focus-within {
+  background: var(--dg-bg);
+  border-color: var(--dg-accent);
+  box-shadow: 0 0 0 2px var(--dg-accent-soft);
+  color: var(--dg-accent);
+}
 .dg-search input {
   border: 0; outline: none; background: transparent; color: var(--dg-text);
   font: inherit; font-size: var(--dg-fs-xs); flex: 1; min-width: 0; height: 100%;
@@ -287,29 +351,46 @@
 
 /* tabs --------------------------------------------------------------------- */
 .dg-tabs {
-  display: flex; align-items: stretch; gap: 0;
+  display: flex; align-items: stretch; gap: 2px;
   border-bottom: 1px solid var(--dg-line);
   background: var(--dg-surface);
+  padding: 4px 6px 0;
   flex: none; overflow-x: auto; scrollbar-width: none;
 }
 .dg-tabs::-webkit-scrollbar { display: none; }
 .dg-tab {
   display: flex; align-items: center; gap: var(--dg-sp-2);
-  height: 32px; padding: 0 var(--dg-sp-2) 0 var(--dg-sp-4);
-  border: 0; border-right: 1px solid var(--dg-line-soft);
+  height: 32px; padding: 0 var(--dg-sp-2) 0 var(--dg-sp-3);
+  border: 1px solid transparent; border-bottom: 0;
+  border-radius: 8px 8px 0 0;
   background: transparent; color: var(--dg-text-2);
   font-size: var(--dg-fs-sm); cursor: pointer; white-space: nowrap;
   max-width: 220px; position: relative;
   transition: background var(--dg-dur-1) var(--dg-ease), color var(--dg-dur-1) var(--dg-ease);
 }
 .dg-tab:hover { background: var(--dg-hover); color: var(--dg-text); }
-/* The active tab is cut out of the tab strip, so it reads as continuous with
-   the content below rather than as one more raised chip. */
-.dg-tab-active { background: var(--dg-bg); color: var(--dg-text); }
-.dg-tab-active::after { content: ''; position: absolute; left: 0; right: 0; top: 0; height: 2px; background: var(--dg-accent); }
+/* Active tab reads continuous with content below with Google top indicator line */
+.dg-tab-active {
+  background: var(--dg-bg); color: var(--dg-text);
+  border-color: var(--dg-line);
+  font-weight: 500;
+  box-shadow: 0 -1px 2px rgba(0, 0, 0, 0.03);
+}
+.dg-tab-active::after {
+  content: ''; position: absolute; left: 8px; right: 8px; top: 0; height: 2.5px;
+  background: var(--dg-accent); border-radius: 0 0 2px 2px;
+}
 .dg-tab-label { overflow: hidden; text-overflow: ellipsis; }
-.dg-tab-close { display: inline-flex; align-items: center; justify-content: center; width: 24px; height: 24px; margin-right: -2px; border: 0; border-radius: var(--dg-r-xs); background: transparent; color: var(--dg-text-2); cursor: pointer; flex: none; }
-.dg-tab-close:hover, .dg-tab-close:focus-visible { background: var(--dg-pressed); color: var(--dg-text); }
+.dg-tab-close {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 20px; height: 20px; margin-left: 2px;
+  border: 0; border-radius: 50%;
+  background: transparent; color: var(--dg-text-3); cursor: pointer; flex: none;
+  transition: all var(--dg-dur-1) var(--dg-ease);
+}
+.dg-tab-close:hover, .dg-tab-close:focus-visible {
+  background: var(--dg-pressed); color: var(--dg-text);
+}
 
 .dg-content { flex: 1; min-height: 0; display: flex; flex-direction: column; overflow: hidden; position: relative; }
 /* Wraps instead of clipping: an unreachable button is worse than a second line. */
@@ -473,22 +554,67 @@ textarea.dg-input { height: auto; padding: var(--dg-sp-3) var(--dg-sp-3); resize
 .dg-engine-note { font-size: var(--dg-fs-xs); color: var(--dg-text-2); white-space: normal; line-height: var(--dg-lh-tight); }
 
 /* overlays ----------------------------------------------------------------- */
-.dg-backdrop { position: fixed; inset: 0; z-index: 60; display: flex; align-items: center; justify-content: center; background: var(--dg-mask); padding: var(--dg-sp-5); }
+.dg-backdrop {
+  position: fixed; inset: 0; z-index: 60;
+  display: flex; align-items: center; justify-content: center;
+  background: var(--dg-mask);
+  backdrop-filter: blur(2px);
+  padding: var(--dg-sp-5);
+  animation: dg-fade-in 140ms cubic-bezier(0, 0, 0.2, 1);
+}
+@keyframes dg-fade-in { from { opacity: 0; } to { opacity: 1; } }
+
 .dg-modal {
   display: flex; flex-direction: column; max-height: 88vh;
   /* The dialog width is set by the caller; the cap keeps it usable when the
      host panel is narrower than that width. */
   width: 100%; max-width: 100%;
-  border-radius: var(--dg-r-lg);
+  border-radius: 20px;
   background: var(--dg-bg);
   border: 1px solid var(--dg-line);
-  box-shadow: var(--dg-elev-2);
+  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.18), 0 2px 8px rgba(0, 0, 0, 0.08);
   overflow: hidden;
+  animation: dg-scale-up 180ms cubic-bezier(0.1, 0.9, 0.2, 1);
 }
-.dg-modal-head { display: flex; align-items: center; gap: var(--dg-sp-3); padding: var(--dg-sp-4) var(--dg-sp-5); border-bottom: 1px solid var(--dg-line); flex: none; }
-.dg-modal-title { flex: 1; font-weight: 600; font-size: var(--dg-fs-md); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.dg-modal-body { padding: var(--dg-sp-5); overflow: auto; min-height: 0; display: flex; flex-direction: column; gap: var(--dg-sp-4); }
-.dg-modal-foot { display: flex; align-items: center; justify-content: flex-end; gap: var(--dg-sp-2); padding: var(--dg-sp-4) var(--dg-sp-5); border-top: 1px solid var(--dg-line); flex: none; flex-wrap: wrap; }
+@keyframes dg-scale-up { from { opacity: 0; transform: scale(0.96) translateY(6px); } to { opacity: 1; transform: scale(1) translateY(0); } }
+
+.dg-modal-head {
+  display: flex; align-items: center; justify-content: space-between; gap: var(--dg-sp-3);
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--dg-line);
+  background: var(--dg-surface);
+  flex: none;
+}
+.dg-modal-title-wrap {
+  display: flex; align-items: center; gap: 12px;
+  flex: 1; min-width: 0;
+}
+.dg-modal-icon-badge {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 32px; height: 32px; border-radius: 10px;
+  background: color-mix(in srgb, var(--dg-accent) 14%, transparent);
+  color: var(--dg-accent);
+  flex: none;
+}
+.dg-modal-title {
+  font-weight: 600; font-size: 15px; color: var(--dg-text);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.dg-modal-subtitle {
+  font-size: var(--dg-fs-xs); color: var(--dg-text-2); margin-top: 2px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.dg-modal-body {
+  padding: 20px; overflow: auto; min-height: 0;
+  display: flex; flex-direction: column; gap: var(--dg-sp-4);
+}
+.dg-modal-foot {
+  display: flex; align-items: center; justify-content: flex-end; gap: var(--dg-sp-2);
+  padding: 14px 20px;
+  border-top: 1px solid var(--dg-line);
+  background: var(--dg-surface);
+  flex: none; flex-wrap: wrap;
+}
 .dg-ctxmenu {
   position: fixed; z-index: 80; min-width: 176px; padding: var(--dg-sp-1);
   border-radius: var(--dg-r-md);
@@ -528,9 +654,16 @@ textarea.dg-input { height: auto; padding: var(--dg-sp-3) var(--dg-sp-3); resize
 .dg-banner-success { border-left-color: var(--dg-success); background: var(--dg-success-soft); }
 .dg-banner-success > svg { color: var(--dg-success); }
 
-.dg-empty { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: var(--dg-sp-3); padding: var(--dg-sp-6); text-align: center; color: var(--dg-text-2); }
-.dg-empty-title { font-size: var(--dg-fs-md); font-weight: 600; color: var(--dg-text); }
-.dg-empty-hint { font-size: var(--dg-fs-sm); max-width: 420px; line-height: var(--dg-lh-body); }
+.dg-empty {
+  flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: var(--dg-sp-3); padding: var(--dg-sp-6); text-align: center; color: var(--dg-text-2);
+}
+.dg-empty-title { font-size: 16px; font-weight: 600; color: var(--dg-text); letter-spacing: -0.01em; }
+.dg-empty-hint { font-size: var(--dg-fs-sm); max-width: 440px; line-height: var(--dg-lh-body); color: var(--dg-text-2); }
+.dg-welcome-actions {
+  display: flex; align-items: center; gap: var(--dg-sp-3); margin-top: var(--dg-sp-4);
+  flex-wrap: wrap; justify-content: center;
+}
 
 .dg-spinner-row { display: inline-flex; align-items: center; gap: var(--dg-sp-1); font-size: var(--dg-fs-xs); color: var(--dg-text-2); }
 .dg-spinner { width: 12px; height: 12px; border: 2px solid color-mix(in srgb, var(--dg-text-2) 30%, transparent); border-top-color: var(--dg-accent); border-radius: 50%; animation: dg-spin 0.7s linear infinite; flex: none; }
@@ -716,18 +849,54 @@ textarea.dg-input { height: auto; padding: var(--dg-sp-3) var(--dg-sp-3); resize
 
 /* workspace binding rows --------------------------------------------------- */
 .dg-ws-row {
-  border: 1px solid var(--dg-line); border-radius: var(--dg-r-md);
-  padding: var(--dg-sp-4);
-  display: flex; flex-direction: column; gap: var(--dg-sp-2);
+  border: 1px solid var(--dg-line);
+  border-radius: 14px;
+  padding: 14px 16px;
+  display: flex; flex-direction: column; gap: 10px;
   background: var(--dg-surface);
+  transition: all var(--dg-dur-2) var(--dg-ease);
 }
-.dg-ws-head { display: flex; align-items: center; gap: var(--dg-sp-3); min-width: 0; }
-.dg-ws-title { font-weight: 600; font-size: var(--dg-fs-md); white-space: nowrap; }
-.dg-ws-path { color: var(--dg-text-2); font-size: var(--dg-fs-xs); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; direction: rtl; text-align: left; min-width: 0; }
-/* Two fields side by side, with the actions on their own row: the old
-   `1fr 1fr auto` grid squeezed both fields to nothing in a 660px dialog. */
-.dg-ws-form { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); gap: var(--dg-sp-3) var(--dg-sp-4); align-items: end; }
-.dg-ws-actions { grid-column: 1 / -1; display: flex; gap: var(--dg-sp-2); justify-content: flex-end; }
+.dg-ws-row:hover {
+  border-color: color-mix(in srgb, var(--dg-accent) 30%, var(--dg-line));
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+}
+.dg-ws-head { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.dg-ws-icon {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 30px; height: 30px; border-radius: 8px;
+  background: var(--dg-surface-2); color: var(--dg-accent); flex: none;
+}
+.dg-ws-title { font-weight: 600; font-size: 13px; color: var(--dg-text); }
+.dg-ws-path {
+  color: var(--dg-text-2); font-size: 11px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  font-family: var(--dg-mono); opacity: 0.85; margin-top: 2px;
+}
+.dg-status-badge {
+  display: inline-flex; align-items: center; gap: 5px;
+  height: 22px; padding: 0 10px;
+  border-radius: var(--dg-r-pill);
+  font-size: 11px; font-weight: 500;
+  background: var(--dg-surface-2); color: var(--dg-text-2);
+  border: 1px solid var(--dg-line-soft);
+  white-space: nowrap; flex: none;
+}
+.dg-status-badge-ok {
+  background: color-mix(in srgb, var(--dg-success) 12%, transparent);
+  color: var(--dg-success);
+  border-color: color-mix(in srgb, var(--dg-success) 30%, transparent);
+}
+.dg-tag-accent {
+  background: color-mix(in srgb, var(--dg-accent) 12%, transparent);
+  color: var(--dg-accent);
+}
+/* Two fields side by side, with the actions on their own row */
+.dg-ws-form {
+  display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr);
+  gap: var(--dg-sp-3) var(--dg-sp-4); align-items: end;
+  margin-top: 4px;
+}
+.dg-ws-actions { grid-column: 1 / -1; display: flex; gap: var(--dg-sp-2); justify-content: flex-end; margin-top: 2px; }
 
 @media (max-width: 720px) {
   .dg-ws-form { grid-template-columns: minmax(0, 1fr); }

@@ -148,6 +148,7 @@ export function ConnectionDialog(props: ConnectionDialogProps): JSX.Element {
 
   return (
     <Modal
+      icon="database"
       title={initial ? t('edit') : t('newConnection')}
       onClose={props.onClose}
       busy={busy}

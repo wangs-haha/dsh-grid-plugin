@@ -63,7 +63,7 @@ export function Icon({ name, size = 14 }: { name: string; size?: number }): JSX.
 /* Controls                                                                    */
 /* -------------------------------------------------------------------------- */
 
-type ButtonVariant = 'default' | 'primary' | 'danger' | 'ghost'
+type ButtonVariant = 'default' | 'primary' | 'danger' | 'ghost' | 'tonal'
 
 export function Button(props: {
   children?: ReactNode
@@ -214,6 +214,8 @@ export function StatusDot({ status }: { status: 'closed' | 'opening' | 'open' | 
 
 export function Modal(props: {
   title: string
+  subtitle?: string
+  icon?: string
   onClose: () => void
   children?: ReactNode
   footer?: ReactNode
@@ -252,7 +254,17 @@ export function Modal(props: {
         aria-label={props.title}
       >
         <div className="dg-modal-head">
-          <span className="dg-modal-title">{props.title}</span>
+          <div className="dg-modal-title-wrap">
+            {props.icon ? (
+              <span className="dg-modal-icon-badge">
+                <Icon name={props.icon} size={15} />
+              </span>
+            ) : null}
+            <div>
+              <div className="dg-modal-title">{props.title}</div>
+              {props.subtitle ? <div className="dg-modal-subtitle">{props.subtitle}</div> : null}
+            </div>
+          </div>
           <button
             ref={closeRef}
             type="button"

@@ -249,22 +249,24 @@ export function GridPanel({ t }: GridPanelProps): JSX.Element {
 
   const toolbar = (
     <div className="dg-toolbar">
-      <span className="dg-brand">
-        <Icon name="database" size={15} />
-        {tr('panel')}
-      </span>
+      <div className="dg-brand">
+        <span className="dg-brand-badge">
+          <Icon name="database" size={15} />
+        </span>
+        <span className="dg-brand-title">{tr('panel')}</span>
+      </div>
       <div className="dg-toolgroup">
-        <Button onClick={() => setDialog({ kind: 'connection' })} title={tr('newConnection')}>
+        <Button variant="primary" onClick={() => setDialog({ kind: 'connection' })} title={tr('newConnection')}>
           <Icon name="plus" size={11} />
           {tr('newConnection')}
         </Button>
-        <Button onClick={() => openQuery()} title={tr('newQuery')}>
+        <Button variant="tonal" onClick={() => openQuery()} title={tr('newQuery')}>
           <Icon name="play" size={10} />
           {tr('newQuery')}
         </Button>
       </div>
       <span className="dg-toolbar-divider" />
-      <div className="dg-toolgroup">
+      <div className="dg-toolgroup dg-obj-pills">
         {OBJECT_ACTIONS.map((action) => (
           <Button
             key={action.id}
@@ -279,8 +281,22 @@ export function GridPanel({ t }: GridPanelProps): JSX.Element {
         ))}
       </div>
       <div className="dg-spacer" />
+      <button
+        type="button"
+        className={`dg-binding-chip${bindings.length > 0 ? ' dg-binding-chip-active' : ''}`}
+        onClick={() => setDialog({ kind: 'workspaces' })}
+        title={bindings.length > 0 ? `${tr('boundProject')}: ${bindings.map((b) => b.connectionName || b.connectionId).join(', ')}` : tr('projectUnbound')}
+      >
+        <span className={`dg-dot${bindings.length > 0 ? ' dg-dot-open' : ''}`} />
+        <Icon name="link" size={11} />
+        <span className="dg-binding-chip-label">
+          {bindings.length > 0
+            ? `${tr('boundProject')}: ${bindings[0].connectionName || bindings[0].connectionId}${bindings.length > 1 ? ` (+${bindings.length - 1})` : ''}`
+            : tr('workspaces')}
+        </span>
+      </button>
       {meta.meta?.allowWrites ? (
-        <span className="dg-chip" title={tr('writesEnabled')}>
+        <span className="dg-chip dg-chip-writable" title={tr('writesEnabled')}>
           {tr('writesEnabled')}
         </span>
       ) : (
@@ -288,11 +304,6 @@ export function GridPanel({ t }: GridPanelProps): JSX.Element {
           {tr('readOnlyForAgent')}
         </span>
       )}
-      <Button size="sm" variant="ghost" onClick={() => setDialog({ kind: 'workspaces' })} title={tr('workspaces')}>
-        <Icon name="link" size={10} />
-        {tr('workspaces')}
-        {bindings.length > 0 ? ` · ${bindings.length}` : ''}
-      </Button>
       <IconButton icon="refresh" title={tr('refresh')} onClick={() => { void store.connections.load(); void store.meta.load() }} />
     </div>
   )
@@ -469,10 +480,20 @@ export function GridPanel({ t }: GridPanelProps): JSX.Element {
           {tabbar}
           {tabs.tabs.length === 0 ? (
             <Empty title={tr('selectConnection')} hint={tr('agentHint')}>
-              <Button variant="primary" onClick={() => setDialog({ kind: 'connection' })}>
-                <Icon name="plus" size={11} />
-                {tr('newConnection')}
-              </Button>
+              <div className="dg-welcome-actions">
+                <Button variant="primary" onClick={() => setDialog({ kind: 'connection' })}>
+                  <Icon name="plus" size={11} />
+                  {tr('newConnection')}
+                </Button>
+                <Button variant="tonal" onClick={() => openQuery()}>
+                  <Icon name="play" size={10} />
+                  {tr('newQuery')}
+                </Button>
+                <Button variant="ghost" onClick={() => setDialog({ kind: 'workspaces' })}>
+                  <Icon name="link" size={11} />
+                  {tr('workspaces')}
+                </Button>
+              </div>
             </Empty>
           ) : null}
           {panes}
