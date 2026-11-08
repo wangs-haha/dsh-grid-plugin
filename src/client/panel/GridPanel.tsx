@@ -303,6 +303,46 @@ export function GridPanel({ t }: GridPanelProps): JSX.Element {
     </div>
   )
 
+  const tabContextMenu = (event: React.MouseEvent, tab: Tab): void => {
+    event.preventDefault()
+    event.stopPropagation()
+    const index = tabs.tabs.findIndex((t) => t.id === tab.id)
+    const count = tabs.tabs.length
+    const hasLeft = index > 0
+    const hasRight = index < count - 1
+    const hasOthers = count > 1
+
+    const items: MenuItem[] = [
+      {
+        label: tr('closeThisTab'),
+        icon: 'x',
+        onClick: () => store.tabs.close(tab.id),
+      },
+      {
+        label: tr('closeOtherTabs'),
+        disabled: !hasOthers,
+        onClick: () => store.tabs.closeOthers(tab.id),
+      },
+      {
+        label: tr('closeTabsToRight'),
+        disabled: !hasRight,
+        onClick: () => store.tabs.closeToRight(tab.id),
+      },
+      {
+        label: tr('closeTabsToLeft'),
+        disabled: !hasLeft,
+        onClick: () => store.tabs.closeToLeft(tab.id),
+      },
+      { separator: true },
+      {
+        label: tr('closeAllTabs'),
+        onClick: () => store.tabs.closeAll(),
+      },
+    ]
+
+    setMenu({ x: event.clientX, y: event.clientY, items })
+  }
+
   const tabbar = tabs.tabs.length ? (
     <div className="dg-tabs" role="tablist">
       {tabs.tabs.map((tab) => (
@@ -315,6 +355,7 @@ export function GridPanel({ t }: GridPanelProps): JSX.Element {
           aria-selected={tab.id === tabs.activeId}
           className={`dg-tab${tab.id === tabs.activeId ? ' dg-tab-active' : ''}`}
           onClick={() => store.tabs.activate(tab.id)}
+          onContextMenu={(event) => tabContextMenu(event, tab)}
           onKeyDown={(event) => {
             if (event.key === 'Enter' || event.key === ' ') {
               event.preventDefault()

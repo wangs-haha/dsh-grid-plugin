@@ -87,12 +87,11 @@ export function TreePane(props: TreePaneProps): JSX.Element {
     database: DatabaseNode,
     schema: string,
     relation: RelationNode,
-    depth: number,
   ): JSX.Element => (
     <div
       key={`${connection.id}|${database.name}|${schema}|${relation.name}`}
       className="dg-trow"
-      style={{ paddingLeft: depth * 13 + 4 }}
+      style={{ paddingLeft: schema ? 54 : 40 }}
       title={`${relation.name}${relation.rows !== null ? ` · ${relation.rows} rows` : ''}`}
       onClick={() => props.onOpenTable(connection, database, schema, relation)}
     >
@@ -113,6 +112,7 @@ export function TreePane(props: TreePaneProps): JSX.Element {
       <div key={key}>
         <div
           className={`dg-trow dg-trow-db${props.selectedDatabaseKey === key ? ' dg-trow-active' : ''}`}
+          style={{ paddingLeft: 26 }}
           title={database.name}
           onClick={() => void selectDatabase(connection, database)}
           onContextMenu={(event) => {
@@ -149,7 +149,7 @@ export function TreePane(props: TreePaneProps): JSX.Element {
                   {schema ? (
                     <div
                       className="dg-trow"
-                      style={{ paddingLeft: 17 }}
+                      style={{ paddingLeft: 40 }}
                       onClick={() => {
                         toggleKey(schemaKey, setOpenSchemas)
                         if (!schemaOpen) void store.catalog.loadRelations(connection.id, database.name, schema)
@@ -169,12 +169,12 @@ export function TreePane(props: TreePaneProps): JSX.Element {
                       ? (
                           <div
                             className="dg-muted"
-                            style={{ padding: `2px 8px 2px ${(schema ? 3 : 2) * 13 + 16}px` }}
+                            style={{ padding: `2px 8px 2px ${(schema ? 54 : 40) + 16}px` }}
                           >
                             {t('loading')}
                           </div>
                         )
-                      : relations.map((relation) => relationRow(connection, database, schema, relation, schema ? 3 : 2))
+                      : relations.map((relation) => relationRow(connection, database, schema, relation))
                     : null}
                 </div>
               )
@@ -271,6 +271,7 @@ export function TreePane(props: TreePaneProps): JSX.Element {
                   <div key={connection.id}>
                     <div
                       className={`dg-trow${connections.activeId === connection.id ? ' dg-trow-active' : ''}`}
+                      style={{ paddingLeft: 12 }}
                       onClick={() => void toggleConnection(connection)}
                       onContextMenu={(event) => {
                         event.preventDefault()
@@ -292,12 +293,12 @@ export function TreePane(props: TreePaneProps): JSX.Element {
                       <StatusDot status={session.status} />
                     </div>
                     {session.status === 'opening' ? (
-                      <div className="dg-muted dg-hint" style={{ padding: '2px 8px 2px 30px' }}>
+                      <div className="dg-muted dg-hint" style={{ padding: '2px 8px 2px 34px' }}>
                         {t('connect')}…
                       </div>
                     ) : null}
                     {session.status === 'error' ? (
-                      <div className="dg-muted dg-hint" style={{ padding: '2px 8px 2px 30px' }}>
+                      <div className="dg-muted dg-hint" style={{ padding: '2px 8px 2px 34px' }}>
                         {session.error || t('error')}
                       </div>
                     ) : null}

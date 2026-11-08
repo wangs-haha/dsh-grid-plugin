@@ -132,6 +132,34 @@
 .dg-row { display: flex; align-items: center; gap: var(--dg-sp-3); min-width: 0; }
 .dg-spacer { flex: 1; min-width: 0; }
 
+/* shell layout ------------------------------------------------------------- */
+.dg-body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: row;
+  overflow: hidden;
+}
+.dg-tree {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  width: 100%;
+  height: 100%;
+  border-right: 1px solid var(--dg-line-soft);
+  background: var(--dg-surface);
+  overflow: hidden;
+}
+.dg-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: var(--dg-bg);
+  position: relative;
+}
+
 /* toolbar (Ant Design Header/Subbar style) --------------------------------- */
 .dg-toolbar {
   display: flex; align-items: center; gap: var(--dg-sp-2);
@@ -358,14 +386,61 @@ textarea.dg-input { height: auto; padding: 6px 11px; resize: vertical; font-fami
   line-height: var(--dg-lh-tight);
 }
 .dg-form {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  width: 100%;
 }
-.dg-grid-host-port {
-  display: grid;
-  grid-template-columns: minmax(0, 3fr) minmax(0, 1.2fr);
-  gap: 16px;
+.dg-field-wrap {
+  width: 100%;
+}
+.dg-input-affix-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+  width: 100%;
+}
+.dg-input-affix-wrapper .dg-input {
+  width: 100%;
+  padding-right: 80px;
+}
+.dg-input-suffix-actions {
+  position: absolute;
+  right: 6px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.dg-input-action-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border: none;
+  background: transparent;
+  color: var(--dg-text-3);
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.dg-input-action-btn:hover {
+  color: var(--dg-text);
+  background: var(--dg-hover);
+}
+.dg-btn-inline-clear {
+  border: none !important;
+  background: transparent !important;
+  color: var(--ant-primary, #1677ff) !important;
+  font-size: 12px !important;
+  padding: 0 4px !important;
+  height: 24px !important;
+  cursor: pointer;
+  box-shadow: none !important;
+}
+.dg-btn-inline-clear:hover {
+  color: var(--ant-primary-hover, #4096ff) !important;
+  text-decoration: underline;
 }
 
 /* cards (Ant Design 5 Card specification) ---------------------------------- */
@@ -927,10 +1002,11 @@ textarea.dg-input { height: auto; padding: 6px 11px; resize: vertical; font-fami
 }
 .dg-trow {
   display: flex; align-items: center; gap: 6px;
-  height: 28px; padding: 0 8px; border-radius: var(--dg-r-xs);
+  height: 28px; padding-right: 8px; border-radius: var(--dg-r-xs);
   cursor: pointer; font-size: 12px; color: var(--dg-text);
   transition: all 0.15s;
   user-select: none;
+  white-space: nowrap;
 }
 .dg-trow:hover { background: var(--dg-hover); }
 .dg-trow-active { background: var(--ant-primary-bg, #e6f4ff); color: var(--ant-primary, #1677ff); font-weight: 500; }
@@ -946,29 +1022,43 @@ textarea.dg-input { height: auto; padding: 6px 11px; resize: vertical; font-fami
 .dg-colorbar { width: 3px; height: 14px; border-radius: 2px; flex: none; }
 
 /* engine cards in connection dialog ---------------------------------------- */
-.dg-engines { display: grid; grid-template-columns: repeat(auto-fit, minmax(105px, 1fr)); gap: 8px; }
+.dg-engines {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 8px;
+  margin-bottom: 12px;
+}
 .dg-engine {
-  display: flex; flex-direction: column; gap: 4px; align-items: flex-start;
-  padding: 8px 12px;
-  border: 1px solid var(--dg-line-soft); border-radius: var(--dg-r-md);
-  background: var(--dg-surface); cursor: pointer;
-  font-size: 13px; color: var(--dg-text); text-align: left;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.02);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  height: 40px;
+  padding: 0 10px;
+  border: 1px solid var(--dg-line-soft);
+  border-radius: var(--dg-r-md);
+  background: var(--dg-surface);
+  cursor: pointer;
   transition: all 0.2s cubic-bezier(0.645, 0.045, 0.355, 1);
+  user-select: none;
 }
 .dg-engine:hover:not(:disabled) {
   border-color: var(--ant-primary-hover, #4096ff);
-  background: var(--dg-bg);
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+  background: var(--dg-surface-2);
 }
 .dg-engine-active {
   border-color: var(--ant-primary, #1677ff) !important;
   background: var(--ant-primary-bg, #e6f4ff) !important;
   box-shadow: 0 0 0 1px var(--ant-primary, #1677ff);
 }
+.dg-engine-active .dg-engine-name {
+  color: var(--ant-primary, #1677ff);
+  font-weight: 600;
+}
 .dg-engine:disabled { opacity: 0.45; cursor: not-allowed; }
 .dg-engine-head { display: flex; align-items: center; gap: 8px; }
-.dg-engine-name { font-weight: 600; font-size: 13px; }
+.dg-engine-name { font-weight: 500; font-size: 13px; color: var(--dg-text); white-space: nowrap; }
+.dg-logo { display: inline-flex; align-items: center; justify-content: center; flex: none; }
 .dg-tags { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 2px; }
 .dg-summary { margin: 4px 0; }
 .dg-form-section { display: flex; flex-direction: column; gap: 12px; border-top: 1px solid var(--dg-line-soft); padding-top: 14px; }

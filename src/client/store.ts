@@ -341,6 +341,31 @@ export class TabsStore extends Store<TabsState> {
     this.setState({ tabs, activeId: this.state.activeId === id ? (fallback?.id ?? '') : this.state.activeId })
   }
 
+  closeAll(): void {
+    this.setState({ tabs: [], activeId: '' })
+  }
+
+  closeOthers(id: string): void {
+    const tab = this.state.tabs.find((t) => t.id === id)
+    this.setState({ tabs: tab ? [tab] : [], activeId: tab ? tab.id : '' })
+  }
+
+  closeToRight(id: string): void {
+    const index = this.state.tabs.findIndex((tab) => tab.id === id)
+    if (index === -1) return
+    const tabs = this.state.tabs.slice(0, index + 1)
+    const stillActive = tabs.some((t) => t.id === this.state.activeId)
+    this.setState({ tabs, activeId: stillActive ? this.state.activeId : id })
+  }
+
+  closeToLeft(id: string): void {
+    const index = this.state.tabs.findIndex((tab) => tab.id === id)
+    if (index === -1) return
+    const tabs = this.state.tabs.slice(index)
+    const stillActive = tabs.some((t) => t.id === this.state.activeId)
+    this.setState({ tabs, activeId: stillActive ? this.state.activeId : id })
+  }
+
   closeConnection(connectionId: string): void {
     const tabs = this.state.tabs.filter((tab) => tab.connectionId !== connectionId)
     const stillActive = tabs.some((tab) => tab.id === this.state.activeId)

@@ -1,7 +1,7 @@
 /**
  * Create or edit a connection.
  *
- * Engines are cards with their own mark and tags, the environment colour is a
+ * Engines are cards with their own mark, the environment colour is a
  * swatch row, and the form is organized cleanly into tabs (General, SSH, SSL).
  * Switching engines stays pure local state: no driver, no network.
  */
@@ -13,22 +13,13 @@ import { fmt } from '../lib/format'
 import type { Connection, ConnectionInput, ConnectionColor, EngineInfo, SshAuthType, SshConnectionInput } from '../lib/types'
 import { Banner, Button, Field, Icon, Input, Modal, Select, Spinner, TextArea } from '../ui/kit'
 
-/** Brand colour and glyph used for an engine's mark (drawn, not copied). */
+/** Brand colour and glyph used for an engine's mark. */
 const ENGINE_MARK: Record<string, { color: string; glyph: 'cylinder' | 'layers' | 'file' }> = {
-  mysql: { color: '#e48e00', glyph: 'cylinder' },
+  mysql: { color: '#00758f', glyph: 'cylinder' },
   postgres: { color: '#336791', glyph: 'cylinder' },
   sqlite: { color: '#0f80cc', glyph: 'file' },
   sqlserver: { color: '#cc2927', glyph: 'cylinder' },
   redis: { color: '#dc382d', glyph: 'layers' },
-}
-
-/** Tags shown inside an engine card: protocol, endpoint and driver. */
-const ENGINE_TAGS: Record<string, string[]> = {
-  mysql: ['TCP', ':3306', 'mysql2'],
-  postgres: ['TCP', ':5432', 'pg'],
-  sqlite: ['file', 'built-in'],
-  sqlserver: ['TDS', ':1433', 'mssql'],
-  redis: ['TCP', ':6379', 'ioredis'],
 }
 
 const SWATCHES: Array<{ value: ConnectionColor; color: string }> = [
@@ -38,23 +29,23 @@ const SWATCHES: Array<{ value: ConnectionColor; color: string }> = [
   { value: 'red', color: 'var(--dsw-alias-state-error-primary)' },
 ]
 
-/** One engine mark: a rounded tile in the brand colour with a simple glyph. */
-export function EngineLogo({ engine, size = 26 }: { engine: string; size?: number }): JSX.Element {
-  const mark = ENGINE_MARK[engine] ?? { color: '#6b7280', glyph: 'cylinder' as const }
+/** One engine mark: a crisp SVG icon in the brand colour. */
+export function EngineLogo({ engine, size = 20 }: { engine: string; size?: number }): JSX.Element {
+  const mark = ENGINE_MARK[engine] ?? { color: '#1677ff', glyph: 'cylinder' as const }
   const path =
     mark.glyph === 'layers'
-      ? 'M12 4l7 3.5-7 3.5-7-3.5zM5 12l7 3.5 7-3.5M5 16.5l7 3.5 7-3.5'
+      ? 'M12 2L2 7l10 5 10-5-10-5z M2 17l10 5 10-5 M2 12l10 5 10-5'
       : mark.glyph === 'file'
-        ? 'M7 3h7l4 4v14H7zM10 12h5M10 16h5'
-        : 'M12 4c3.9 0 6 1.1 6 2.5S15.9 9 12 9 6 7.9 6 6.5 8.1 4 12 4zM6 6.5v11c0 1.4 2.1 2.5 6 2.5s6-1.1 6-2.5v-11'
+        ? 'M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z M14 2v6h6 M16 13H8 M16 17H8'
+        : 'M21 5c0 1.66-4.03 3-9 3S3 6.66 3 5s4.03-3 9-3 9 1.34 9 3z M3 5v14c0 1.66 4.03 3 9 3s9-1.34 9-3V5 M3 12c0 1.66 4.03 3 9 3s9-1.34 9-3'
   return (
-    <span className="dg-logo" style={{ width: size, height: size, background: mark.color }} aria-hidden>
+    <span className="dg-logo" style={{ width: size, height: size, color: mark.color }} aria-hidden>
       <svg
-        width={size * 0.68}
-        height={size * 0.68}
+        width={size}
+        height={size}
         viewBox="0 0 24 24"
         fill="none"
-        stroke="#fff"
+        stroke="currentColor"
         strokeWidth={1.8}
         strokeLinecap="round"
         strokeLinejoin="round"
@@ -81,39 +72,79 @@ function SecretField(props: {
   hasSaved: boolean
   multiline?: boolean
   disabled: boolean
+  required?: boolean
+  hint?: string
+  placeholder?: string
   onChange: (value: string) => void
   onClear: (clear: boolean) => void
 }): JSX.Element {
-  const { t, draft } = props
+  const { t, draft, hasSaved, disabled } = props
+  const [showPassword, setShowPassword] = useState(false)
+
+  const statusHint = draft.clear
+    ? t('secretClearPending')
+    : hasSaved
+      ? t('secretKeep')
+      : undefined
+
   return (
-    <div className="dg-field">
-      <Field label={props.label} hint={draft.clear ? t('secretClearPending') : props.hasSaved ? t('secretKeep') : undefined}>
-        {props.multiline ? (
-          <TextArea
-            aria-label={props.label}
-            value={draft.value}
-            onChange={(event) => props.onChange(event.target.value)}
-            rows={5}
-            autoComplete="off"
-            spellCheck={false}
-            disabled={props.disabled}
-          />
-        ) : (
-          <Input
-            aria-label={props.label}
-            type="password"
-            value={draft.value}
-            onChange={(event) => props.onChange(event.target.value)}
-            autoComplete="new-password"
-            disabled={props.disabled}
-          />
-        )}
+    <div className="dg-field-wrap">
+      <Field label={props.label} required={props.required} hint={statusHint}>
+        <div className="dg-input-affix-wrapper">
+          {props.multiline ? (
+            <TextArea
+              aria-label={props.label}
+              value={draft.value}
+              onChange={(event) => props.onChange(event.target.value)}
+              rows={4}
+              autoComplete="off"
+              spellCheck={false}
+              disabled={disabled}
+              placeholder={props.placeholder ?? '—'}
+            />
+          ) : (
+            <Input
+              aria-label={props.label}
+              type={showPassword ? 'text' : 'password'}
+              value={draft.value}
+              onChange={(event) => props.onChange(event.target.value)}
+              autoComplete="new-password"
+              disabled={disabled}
+              placeholder={
+                draft.clear
+                  ? t('secretClearPending')
+                  : hasSaved
+                    ? '••••••••'
+                    : (props.placeholder ?? (props.required ? '' : t('optional')))
+              }
+            />
+          )}
+          <div className="dg-input-suffix-actions">
+            {!props.multiline && (draft.value || hasSaved) ? (
+              <button
+                type="button"
+                className="dg-input-action-btn"
+                title={showPassword ? 'Hide password' : 'Show password'}
+                onClick={() => setShowPassword(!showPassword)}
+                tabIndex={-1}
+              >
+                <Icon name={showPassword ? 'eyeOff' : 'eye'} size={13} />
+              </button>
+            ) : null}
+            {hasSaved ? (
+              <button
+                type="button"
+                className="dg-btn-inline-clear ant-btn ant-btn-link"
+                disabled={disabled}
+                onClick={() => props.onClear(!draft.clear)}
+              >
+                {draft.clear ? t('secretUndoClear') : t('secretClear')}
+              </button>
+            ) : null}
+          </div>
+        </div>
+        {props.hint ? <div className="dg-field-hint">{props.hint}</div> : null}
       </Field>
-      <div>
-        <Button size="sm" variant="ghost" disabled={props.disabled} onClick={() => props.onClear(!draft.clear)}>
-          {draft.clear ? t('secretUndoClear') : t('secretClear')}
-        </Button>
-      </div>
     </div>
   )
 }
@@ -287,25 +318,30 @@ export function ConnectionDialog(props: ConnectionDialogProps): JSX.Element {
     }
   }
 
-  /* Empty until the user types one: an endpoint chip of "…" said nothing. */
-  const endpoint = info?.kind === 'file' ? form.file.trim() : `${form.host || '…'}:${form.port || info?.defaultPort || '…'}`
-
   return (
     <Modal
       icon="database"
       title={initial ? t('edit') : t('newConnection')}
       onClose={props.onClose}
       busy={busy}
-      width={620}
+      width={600}
       footer={
-        <>
-          <span className="dg-muted dg-hint" style={{ marginRight: 'auto', maxWidth: '54%' }}>
-            {probe?.text ?? ''}
-          </span>
+        <div style={{ display: 'flex', alignItems: 'center', width: '100%', gap: 8 }}>
           <Button onClick={() => void test()} disabled={busy}>
             {testing ? <Spinner /> : null}
             {t('test')}
           </Button>
+          {probe?.text ? (
+            <span
+              className={probe.ok ? 'dg-tag dg-tag-green' : 'dg-tag dg-tag-red'}
+              style={{ maxWidth: 250, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
+              title={probe.text}
+            >
+              <Icon name={probe.ok ? 'check' : 'alert'} size={11} />
+              {probe.text}
+            </span>
+          ) : null}
+          <div style={{ flex: 1 }} />
           <Button onClick={props.onClose} disabled={busy}>
             {t('cancel')}
           </Button>
@@ -313,10 +349,10 @@ export function ConnectionDialog(props: ConnectionDialogProps): JSX.Element {
             {saving ? <Spinner /> : null}
             {t('save')}
           </Button>
-        </>
+        </div>
       }
     >
-      {/* 1. Compact Engine Picker */}
+      {/* 1. Clean Engine Cards (without unnecessary tags) */}
       <div className="dg-engines">
         {engines.map((entry) => (
           <button
@@ -331,32 +367,13 @@ export function ConnectionDialog(props: ConnectionDialogProps): JSX.Element {
               if (entry.kind === 'file') setTab('general')
             }}
           >
-            <span className="dg-engine-head">
-              <EngineLogo engine={entry.id} size={22} />
-              <span className="dg-engine-name">{entry.label}</span>
-            </span>
-            <span className="dg-tags">
-              {(ENGINE_TAGS[entry.id] ?? []).map((tag) => (
-                <span key={tag} className="dg-tag">
-                  {tag}
-                </span>
-              ))}
-            </span>
+            <EngineLogo engine={entry.id} size={20} />
+            <span className="dg-engine-name">{entry.label}</span>
           </button>
         ))}
       </div>
 
-      {/* 2. Connection Summary Pill Row */}
-      <div className="dg-tags dg-summary">
-        <span className="dg-tag dg-tag-strong">{info?.label ?? engine}</span>
-        {endpoint ? <span className="dg-tag">{endpoint}</span> : null}
-        {form.database ? <span className="dg-tag">{form.database}</span> : null}
-        {form.group ? <span className="dg-tag">{form.group}</span> : null}
-        {network && form.sslMode !== 'disable' ? <span className="dg-tag">TLS</span> : null}
-        {network && ssh.enabled ? <span className="dg-tag">SSH</span> : null}
-      </div>
-
-      {/* 3. Modern Tab Switcher */}
+      {/* 2. Modern Tab Switcher */}
       {network ? (
         <div className="dg-dialog-tabs" role="tablist">
           <button
@@ -402,7 +419,7 @@ export function ConnectionDialog(props: ConnectionDialogProps): JSX.Element {
         </div>
       ) : null}
 
-      {/* 4. Tab Panes: All kept mounted in DOM so form drafts and controlled queries persist */}
+      {/* 3. Tab Panes: All kept mounted in DOM so form drafts and controlled queries persist */}
       <div className="dg-dialog-tab-body">
         {/* Tab 1: General */}
         <div
@@ -412,69 +429,67 @@ export function ConnectionDialog(props: ConnectionDialogProps): JSX.Element {
           className="dg-tab-panel"
           style={{ display: tab === 'general' ? 'flex' : 'none' }}
         >
-          <section className="dg-form-section" style={network ? { borderTop: 0, paddingTop: 0 } : undefined}>
-            <div className="dg-section-title">{t('identity')}</div>
-            <div className="dg-form">
-              <Field label={t('name')}>
-                <Input value={form.name} onChange={set('name')} placeholder={info?.label} />
-              </Field>
-              <Field label={t('group')}>
-                <Input value={form.group} onChange={set('group')} placeholder="dev" />
-              </Field>
-            </div>
-            <div className="dg-colors">
-              <span className="dg-field-label">{t('color')}</span>
-              {SWATCHES.map((swatch) => (
-                <button
-                  key={swatch.value}
-                  type="button"
-                  className={`dg-swatch${swatch.value === 'none' ? ' dg-swatch-none' : ''}${form.color === swatch.value ? ' dg-swatch-on' : ''}`}
-                  style={{ background: swatch.color }}
-                  title={swatch.value}
-                  aria-label={swatch.value}
-                  aria-pressed={form.color === swatch.value}
-                  onClick={() => setForm((current) => ({ ...current, color: swatch.value }))}
-                >
-                  {form.color === swatch.value ? <Icon name="check" size={10} /> : null}
-                </button>
-              ))}
-            </div>
-          </section>
+          <div className="dg-form">
+            <Field label={t('name')} required>
+              <Input value={form.name} onChange={set('name')} placeholder={info?.label ?? 'Connection Name'} />
+            </Field>
 
-          <section className="dg-form-section">
-            {info?.kind === 'file' ? null : <div className="dg-section-title">{t('server')}</div>}
             {info?.kind === 'file' ? (
-              <div className="dg-form">
-                <Field label={t('file')} wide hint="e.g. D:\\data\\app.db">
-                  <Input value={form.file} onChange={set('file')} placeholder="C:/data/app.db" />
-                </Field>
-              </div>
+              <Field label={t('file')} required hint="e.g. D:\\data\\app.db">
+                <Input value={form.file} onChange={set('file')} placeholder="C:/data/app.db" />
+              </Field>
             ) : (
-              <div className="dg-form">
-                <div className="dg-field-row dg-field-wide dg-grid-host-port">
-                  <Field label={t('host')} hint={ssh.enabled ? t('sshDatabaseHostHint') : undefined}>
-                    <Input value={form.host} onChange={set('host')} />
-                  </Field>
-                  <Field label={t('port')}>
-                    <Input value={form.port} onChange={set('port')} placeholder={String(info?.defaultPort ?? '')} />
-                  </Field>
-                </div>
-                <Field label={t('user')}>
-                  <Input value={form.user} onChange={set('user')} />
+              <>
+                <Field label={t('host')} required hint={ssh.enabled ? t('sshDatabaseHostHint') : undefined}>
+                  <Input value={form.host} onChange={set('host')} placeholder="127.0.0.1" />
                 </Field>
-                <SecretField label={t('password')} {...secretProps('password', initial?.hasPassword ?? false)} />
+
+                <Field label={t('port')} required>
+                  <Input value={form.port} onChange={set('port')} placeholder={String(info?.defaultPort ?? '')} />
+                </Field>
+
+                <Field label={t('user')} required={engine !== 'redis'}>
+                  <Input value={form.user} onChange={set('user')} placeholder={engine === 'redis' ? t('optional') : 'root'} />
+                </Field>
+
+                <SecretField label={t('password')} {...secretProps('password', initial?.hasPassword ?? false)} placeholder={t('optional')} />
+
                 {engine === 'redis' ? (
                   <Field label={t('redisDb')}>
-                    <Input value={form.redisDb} onChange={set('redisDb')} inputMode="numeric" />
+                    <Input value={form.redisDb} onChange={set('redisDb')} inputMode="numeric" placeholder="0" />
                   </Field>
                 ) : (
-                  <Field label={t('database')}>
-                    <Input value={form.database} onChange={set('database')} placeholder="optional" />
+                  <Field label={t('database')} hint={t('optional')}>
+                    <Input value={form.database} onChange={set('database')} placeholder={t('optional')} />
                   </Field>
                 )}
-              </div>
+              </>
             )}
-          </section>
+
+            <Field label={t('group')} hint={t('optional')}>
+              <Input value={form.group} onChange={set('group')} placeholder="dev / staging / prod" />
+            </Field>
+
+            <div className="dg-field ant-form-item">
+              <span className="dg-field-label ant-form-item-label">{t('color')}</span>
+              <div className="dg-colors">
+                {SWATCHES.map((swatch) => (
+                  <button
+                    key={swatch.value}
+                    type="button"
+                    className={`dg-swatch${swatch.value === 'none' ? ' dg-swatch-none' : ''}${form.color === swatch.value ? ' dg-swatch-on' : ''}`}
+                    style={{ background: swatch.color }}
+                    title={swatch.value}
+                    aria-label={swatch.value}
+                    aria-pressed={form.color === swatch.value}
+                    onClick={() => setForm((current) => ({ ...current, color: swatch.value }))}
+                  >
+                    {form.color === swatch.value ? <Icon name="check" size={10} /> : null}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
         </div>
 
         {/* Tab 2: SSH */}
@@ -486,8 +501,7 @@ export function ConnectionDialog(props: ConnectionDialogProps): JSX.Element {
             className="dg-tab-panel"
             style={{ display: tab === 'ssh' ? 'flex' : 'none' }}
           >
-            <section className="dg-form-section" style={{ borderTop: 0, paddingTop: 0 }}>
-              <div className="dg-section-title">{t('sshSection')}</div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
               <label className="dg-field-label dg-checkbox-row">
                 <input
                   type="checkbox"
@@ -506,18 +520,19 @@ export function ConnectionDialog(props: ConnectionDialogProps): JSX.Element {
                 <>
                   <div className="dg-field-hint">{t('sshSingleHopHint')}</div>
                   <div className="dg-form">
-                    <div className="dg-field-row dg-field-wide dg-grid-host-port">
-                      <Field label={t('sshHost')}>
-                        <Input value={ssh.host} onChange={setSshField('host')} required disabled={busy} autoComplete="off" />
-                      </Field>
-                      <Field label={t('sshPort')}>
-                        <Input value={ssh.port} onChange={setSshField('port')} required inputMode="numeric" disabled={busy} />
-                      </Field>
-                    </div>
-                    <Field label={t('sshUsername')}>
-                      <Input value={ssh.username} onChange={setSshField('username')} required disabled={busy} autoComplete="off" />
+                    <Field label={t('sshHost')} required>
+                      <Input value={ssh.host} onChange={setSshField('host')} required disabled={busy} autoComplete="off" placeholder="jump.example.com" />
                     </Field>
-                    <Field label={t('sshAuthType')}>
+
+                    <Field label={t('sshPort')} required>
+                      <Input value={ssh.port} onChange={setSshField('port')} required inputMode="numeric" disabled={busy} placeholder="22" />
+                    </Field>
+
+                    <Field label={t('sshUsername')} required>
+                      <Input value={ssh.username} onChange={setSshField('username')} required disabled={busy} autoComplete="off" placeholder="deploy" />
+                    </Field>
+
+                    <Field label={t('sshAuthType')} required>
                       <Select
                         value={ssh.authType}
                         disabled={busy}
@@ -528,7 +543,8 @@ export function ConnectionDialog(props: ConnectionDialogProps): JSX.Element {
                         <option value="privateKey">{t('sshAuthPrivateKey')}</option>
                       </Select>
                     </Field>
-                    <Field label={t('sshHostFingerprint')} wide hint={t('sshFingerprintHint')}>
+
+                    <Field label={t('sshHostFingerprint')} required hint={t('sshFingerprintHint')}>
                       <Input
                         value={ssh.hostFingerprint}
                         onChange={setSshField('hostFingerprint')}
@@ -539,19 +555,20 @@ export function ConnectionDialog(props: ConnectionDialogProps): JSX.Element {
                         spellCheck={false}
                       />
                     </Field>
+
                     {ssh.authType === 'password' ? (
-                      <SecretField label={t('sshPassword')} {...secretProps('sshPassword', initial?.ssh?.hasPassword ?? false)} />
+                      <SecretField label={t('sshPassword')} required {...secretProps('sshPassword', initial?.ssh?.hasPassword ?? false)} />
                     ) : (
                       <>
-                        <div className="dg-field-wide">
-                          <SecretField
-                            label={t('sshPrivateKey')}
-                            multiline
-                            {...secretProps('privateKey', initial?.ssh?.hasPrivateKey ?? false)}
-                          />
-                          <div className="dg-field-hint">{t('sshPrivateKeyHint')}</div>
-                        </div>
-                        <SecretField label={t('sshPassphrase')} {...secretProps('passphrase', initial?.ssh?.hasPassphrase ?? false)} />
+                        <SecretField
+                          label={t('sshPrivateKey')}
+                          multiline
+                          required
+                          hint={t('sshPrivateKeyHint')}
+                          placeholder="-----BEGIN OPENSSH PRIVATE KEY-----"
+                          {...secretProps('privateKey', initial?.ssh?.hasPrivateKey ?? false)}
+                        />
+                        <SecretField label={t('sshPassphrase')} hint={t('optional')} placeholder={t('optional')} {...secretProps('passphrase', initial?.ssh?.hasPassphrase ?? false)} />
                       </>
                     )}
                   </div>
@@ -565,7 +582,7 @@ export function ConnectionDialog(props: ConnectionDialogProps): JSX.Element {
                   <span>{t('sshSingleHopHint')}</span>
                 </div>
               )}
-            </section>
+            </div>
           </div>
         ) : null}
 
@@ -578,32 +595,29 @@ export function ConnectionDialog(props: ConnectionDialogProps): JSX.Element {
             className="dg-tab-panel"
             style={{ display: tab === 'ssl' ? 'flex' : 'none' }}
           >
-            <section className="dg-form-section" style={{ borderTop: 0, paddingTop: 0 }}>
-              <div className="dg-section-title">TLS / SSL</div>
-              <div className="dg-form">
-                <Field label="TLS / SSL" wide hint={engine === 'sqlserver' ? t('sqlserverVerifyCaUnsupported') : undefined}>
-                  <Select
-                    value={form.sslMode}
-                    onChange={(event) =>
-                      setForm((current) => ({
-                        ...current,
-                        sslMode: event.target.value as ConnectionInput['sslMode'] & string,
-                      }))
-                    }
-                  >
-                    <option value="disable">{t('sslDisable')}</option>
-                    <option value="require">{t('sslRequire')}</option>
-                    <option value="verify-ca" disabled={engine === 'sqlserver'}>{t('sslVerifyCa')}</option>
-                    <option value="verify-full">{t('sslVerifyFull')}</option>
-                  </Select>
+            <div className="dg-form">
+              <Field label="TLS / SSL" required hint={engine === 'sqlserver' ? t('sqlserverVerifyCaUnsupported') : undefined}>
+                <Select
+                  value={form.sslMode}
+                  onChange={(event) =>
+                    setForm((current) => ({
+                      ...current,
+                      sslMode: event.target.value as ConnectionInput['sslMode'] & string,
+                    }))
+                  }
+                >
+                  <option value="disable">{t('sslDisable')}</option>
+                  <option value="require">{t('sslRequire')}</option>
+                  <option value="verify-ca" disabled={engine === 'sqlserver'}>{t('sslVerifyCa')}</option>
+                  <option value="verify-full">{t('sslVerifyFull')}</option>
+                </Select>
+              </Field>
+              {form.sslMode !== 'disable' ? (
+                <Field label={t('tlsServerName')} hint={t('tlsServerNameHint')}>
+                  <Input value={form.tlsServerName} onChange={set('tlsServerName')} placeholder={form.host.trim()} />
                 </Field>
-                {form.sslMode !== 'disable' ? (
-                  <Field label={t('tlsServerName')} wide hint={t('tlsServerNameHint')}>
-                    <Input value={form.tlsServerName} onChange={set('tlsServerName')} placeholder={form.host.trim()} />
-                  </Field>
-                ) : null}
-              </div>
-            </section>
+              ) : null}
+            </div>
           </div>
         ) : null}
       </div>
