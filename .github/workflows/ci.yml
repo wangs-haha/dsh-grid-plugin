@@ -1,0 +1,32 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    name: ${{ matrix.os }} / Node ${{ matrix.node }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        node: ['22.22.2', '24.15.0']
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+          cache: pnpm
+      - name: Install locked dependencies without third-party install scripts
+        run: pnpm install --frozen-lockfile --ignore-scripts
+      - name: Check repository, locale, types, build and safe tests
+        run: pnpm check
+      - name: Verify committed install artifacts are current
+        run: git diff --exit-code -- dist/client.js locale/en.json locale/zh.json

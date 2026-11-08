@@ -442,6 +442,7 @@ export function Modal(props: {
   children?: ReactNode
   footer?: ReactNode
   width?: number
+  className?: string
   busy?: boolean
 }): JSX.Element {
   const closeRef = useRef<HTMLButtonElement>(null)
@@ -473,7 +474,7 @@ export function Modal(props: {
       }}
     >
       <div
-        className="dg-modal ant-modal"
+        className={`dg-modal ant-modal${props.className ? ` ${props.className}` : ''}`}
         style={{ width: `${props.width ?? 560}px` }}
         role="dialog"
         aria-modal="true"

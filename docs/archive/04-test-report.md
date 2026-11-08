@@ -1,5 +1,8 @@
 # 04 · 测试报告
 
+> 历史档案：保留原始调研、计划与当时的验证结果，不代表当前实现或维护约束。
+> 当前行为以 [使用指南](<../user-guide.md>)、[架构](<../architecture.md>) 和 [测试指南](<../testing.md>) 为准。
+
 > 被测版本：`@local/dsh-grid` 0.1.0
 > 环境：Windows · DSH Desktop（profile `desktop`）· Node v24.14.0 · pnpm 10.33.0
 > 执行时间：2026-11-04

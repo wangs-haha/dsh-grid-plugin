@@ -1,9 +1,9 @@
 /**
  * Driver integration tests.
  *
- * SQLite always runs. MySQL, PostgreSQL and Redis run when a server answers on
- * the documented local port, and skip with a clear reason otherwise, so the
- * suite is useful both in CI and on a machine without containers.
+ * SQLite always runs. MySQL, PostgreSQL and Redis require an explicit
+ * GRID_TEST_INTEGRATION=1 opt-in before probing the documented local fixtures.
+ * These tests create/drop objects, so availability alone is never consent.
  */
 
 import assert from 'node:assert/strict'
@@ -11,6 +11,12 @@ import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { after, test } from 'node:test'
+
+/** Existing local database fixtures are separate from test-owned loopback servers. */
+const integration = process.env.GRID_TEST_INTEGRATION === '1'
+const externalDatabase = {
+  skip: integration ? false : 'opt-in required: pnpm test:integration (writes disposable local fixtures)',
+}
 
 /** Temporary directory holding the SQLite fixture. */
 const dir = mkdtempSync(join(tmpdir(), 'grid-driver-'))
@@ -134,7 +140,7 @@ test('sqlite: databases and table listing', async () => {
   }
 })
 
-test('mysql: full table contract', async (t) => {
+test('mysql: full table contract', externalDatabase, async (t) => {
   const { create } = await import('../lib/drivers/mysql.js')
   const options = {
     engine: 'mysql',
@@ -157,7 +163,7 @@ test('mysql: full table contract', async (t) => {
   })
 })
 
-test('postgres: full table contract', async (t) => {
+test('postgres: full table contract', externalDatabase, async (t) => {
   const { create } = await import('../lib/drivers/postgres.js')
   const options = {
     engine: 'postgres',
@@ -180,7 +186,7 @@ test('postgres: full table contract', async (t) => {
   })
 })
 
-test('postgres: database list carries schemas', async (t) => {
+test('postgres: database list carries schemas', externalDatabase, async (t) => {
   const { create } = await import('../lib/drivers/postgres.js')
   const driver = await create({
     engine: 'postgres',
@@ -208,7 +214,7 @@ test('postgres: database list carries schemas', async (t) => {
   }
 })
 
-test('redis: scan, inspect and command', async (t) => {
+test('redis: scan, inspect and command', externalDatabase, async (t) => {
   const { create } = await import('../lib/drivers/redis.js')
   const driver = create({ engine: 'redis', host: '127.0.0.1', port: 6379, redisDb: 0 })
   try {

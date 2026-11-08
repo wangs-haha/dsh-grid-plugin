@@ -1,12 +1,15 @@
 # Grid 插件评审 · 对照 t8y2/dbx 的优化清单
 
+> 历史档案：保留原始调研、计划与当时的验证结果，不代表当前实现或维护约束。
+> 当前行为以 [使用指南](<../user-guide.md>)、[架构](<../architecture.md>) 和 [测试指南](<../testing.md>) 为准。
+
 评审对象：`@local/dsh-grid`（DSH 数据库工作台插件；评审时为 v0.4.0，现为 v0.5.0）
 参照物：[t8y2/dbx](https://github.com/t8y2/dbx)（Rust + Tauri，100+ 数据库，桌面/Web/CLI/MCP）
 
 > **状态：评审清单已执行完毕，版本 0.5.0。** 第 2 章的 P0 项、第 3 章的性能项、第 5 章的工程卫生项、
 > 第 6 章五件事全部完成；另补上 CSV 导入、PG/SQL Server 的真实 DDL 与视图定义、MySQL/SQL Server
 > 流式读取、列菜单、Insert row、行编辑器、结果截断提示，合并了重复的结构查询，修好了 `dev/` 量具
-> 并借此修掉工具栏裁剪，把这些行为变更写进 [CHANGELOG.md](CHANGELOG.md)。
+> 并借此修掉工具栏裁剪，把这些行为变更写进 [CHANGELOG.md](<../../CHANGELOG.md>)。
 > 剩余项全部需要引入依赖或产品方向决定，见 §8.34。
 > （`pnpm test`：108 项，104 通过 / 4 跳过，跳过的是需要真实 MySQL/PG/Redis 的用例）。逐条清单见 §8。
 

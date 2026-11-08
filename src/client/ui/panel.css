@@ -1021,10 +1021,72 @@ textarea.dg-input { height: auto; padding: 6px 11px; resize: vertical; font-fami
 .dg-tlabel { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; }
 .dg-colorbar { width: 3px; height: 14px; border-radius: 2px; flex: none; }
 
+/* Connection dialog owns its Portal sizing; do not depend on the Host reset. */
+.dg-connection-dialog,
+.dg-connection-dialog *,
+.dg-connection-dialog *::before,
+.dg-connection-dialog *::after { box-sizing: border-box; }
+.dg-connection-dialog {
+  max-width: calc(100vw - 32px);
+  color: var(--dg-text);
+  font-size: var(--dg-fs-sm);
+  line-height: var(--dg-lh-body);
+  container-type: inline-size;
+}
+.dg-connection-dialog .dg-modal-body > * { flex-shrink: 0; }
+.dg-connection-dialog .dg-dialog-tab-body,
+.dg-connection-dialog .dg-tab-panel { min-width: 0; }
+.dg-connection-dialog .dg-dialog-tabs { margin: 0; flex-shrink: 0; gap: var(--dg-sp-5); }
+.dg-connection-dialog .dg-dialog-tab { padding: var(--dg-sp-3) 0; font-size: var(--dg-fs-sm); }
+.dg-connection-dialog .dg-connection-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--dg-sp-5) var(--dg-sp-6);
+  align-items: start;
+}
+.dg-connection-dialog .dg-field-wide,
+.dg-connection-wide { grid-column: 1 / -1; }
+.dg-connection-address {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 120px;
+  gap: var(--dg-sp-5);
+  align-items: start;
+  min-width: 0;
+}
+.dg-connection-section { display: flex; flex-direction: column; gap: var(--dg-sp-5); min-width: 0; }
+.dg-connection-dialog .dg-input { width: 100%; }
+.dg-connection-dialog .dg-field-label { min-height: 20px; line-height: 20px; }
+.dg-connection-dialog .dg-field-label::before { font: inherit; line-height: 1; }
+.dg-connection-dialog .dg-field-wrap,
+.dg-connection-dialog .dg-field-hint { min-width: 0; overflow-wrap: anywhere; }
+.dg-connection-dialog .dg-field-required::before { content: none; }
+.dg-connection-dialog .dg-input-affix-wrapper > textarea { padding-right: var(--dg-sp-4); }
+.dg-connection-dialog .dg-input-affix-wrapper:has(textarea) { flex-direction: column; align-items: stretch; }
+.dg-connection-dialog .dg-input-affix-wrapper:has(textarea) .dg-input-suffix-actions { position: static; align-self: flex-end; }
+.dg-connection-dialog .dg-banner { margin: 0; background: var(--dg-surface-2); border-color: var(--dg-line); }
+.dg-connection-dialog .dg-banner-error { background: var(--dg-error-soft); border-color: var(--dg-error); }
+.dg-connection-dialog .dg-checkbox-row { font-weight: 500; }
+.dg-connection-dialog .dg-swatch { width: 28px; height: 28px; }
+.dg-connection-options { border-top: 1px solid var(--dg-line); margin-top: var(--dg-sp-2); }
+.dg-connection-options > summary { padding: var(--dg-sp-4) 0; color: var(--dg-text-2); cursor: pointer; font-weight: 500; }
+.dg-connection-options > summary:hover { color: var(--dg-text); }
+.dg-connection-options > .dg-connection-grid { padding-bottom: var(--dg-sp-2); }
+.dg-connection-footer { display: flex; align-items: center; flex-wrap: wrap; gap: var(--dg-sp-3); width: 100%; min-width: 0; }
+.dg-connection-actions { display: flex; gap: var(--dg-sp-3); margin-left: auto; }
+.dg-connection-footer .dg-connection-probe { order: 1; flex-basis: 100%; height: auto; white-space: normal; overflow-wrap: anywhere; }
+.dg-connection-dialog .dg-dialog-tab-active::after { left: 0; right: 0; }
+@container (max-width: 560px) {
+  .dg-connection-dialog .dg-connection-grid { grid-template-columns: minmax(0, 1fr); }
+  .dg-connection-address { grid-template-columns: minmax(0, 1fr) 96px; gap: var(--dg-sp-3); }
+  .dg-connection-dialog .dg-modal-body { padding: var(--dg-sp-5); }
+  .dg-connection-dialog .dg-modal-head,
+  .dg-connection-dialog .dg-modal-foot { padding-left: var(--dg-sp-5); padding-right: var(--dg-sp-5); }
+}
+
 /* engine cards in connection dialog ---------------------------------------- */
 .dg-engines {
   display: grid;
-  grid-template-columns: repeat(5, 1fr);
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 128px), 1fr));
   gap: 8px;
   margin-bottom: 12px;
 }
@@ -1055,6 +1117,8 @@ textarea.dg-input { height: auto; padding: 6px 11px; resize: vertical; font-fami
   color: var(--ant-primary, #1677ff);
   font-weight: 600;
 }
+.dg-connection-dialog .dg-engine { height: auto; min-height: 44px; min-width: 0; font: inherit; }
+.dg-connection-dialog .dg-engine-name { white-space: normal; overflow-wrap: anywhere; }
 .dg-engine:disabled { opacity: 0.45; cursor: not-allowed; }
 .dg-engine-head { display: flex; align-items: center; gap: 8px; }
 .dg-engine-name { font-weight: 500; font-size: 13px; color: var(--dg-text); white-space: nowrap; }

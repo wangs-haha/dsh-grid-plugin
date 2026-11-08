@@ -1,5 +1,31 @@
+# Dependencies and disposable local output
 node_modules/
 .tmp/
 *.log
+coverage/
+*.tsbuildinfo
+*.tgz
 dev/shots/
 dev/.edge/
+
+# Local credentials, profiles and databases (public test fixtures stay tracked)
+.env
+.env.*
+!.env.example
+.dsh/
+dsh-grid/
+*.db
+*.db-*
+*.sqlite
+*.sqlite-*
+*.sqlite3
+*.sqlite3-*
+
+# Editor / OS metadata
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# dist/client.js and locale/*.json are intentionally tracked install artifacts.
+dist/.client.cjs

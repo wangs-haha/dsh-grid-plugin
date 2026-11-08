@@ -2,9 +2,31 @@
 
 Behaviour changes that matter when upgrading. Each entry names what a user or an
 integration will notice, not just what the code does. The review that drove these
-changes is in [REVIEW-vs-dbx.md](REVIEW-vs-dbx.md).
+changes is preserved in the [historical review](<docs/archive/REVIEW-vs-dbx.md>).
 
 ## Unreleased
+
+### Connection form
+
+- Expanded the connection dialog from 600 to 840px with viewport-aware sizing, grouped
+  host/port and credentials, full-width long values and a single-column narrow layout.
+- Connection names are optional in the panel: blank names derive from host/database or the
+  SQLite filename. Group and environment colour move into a collapsed Organization section;
+  editing an already-organized connection opens that section without losing its values.
+- Fixed engine-card horizontal overflow and duplicate required markers in Portal dialogs.
+  SSH/TLS settings, pinned fingerprints and explicit credential-clear behaviour are preserved.
+
+### Repository maintenance
+
+- Split the user guide, architecture, development, testing and security documentation;
+  archived early plans and review notes so they are not mistaken for current contracts.
+- Added project Agent constraints, a maintenance skill, editor settings and a repeatable
+  `pnpm check` / CI entry point; kept the client bundle and locale JSON as tracked install artifacts.
+- **Existing database integration tests are now opt-in.** `pnpm test` never probes the
+  pre-existing MySQL/PostgreSQL/Redis fixtures. Use `pnpm test:integration` only with
+  disposable local services; it creates/drops tables and mutates Redis keys.
+- Preserved the SSH long-form visual regression as a maintained development script
+  instead of leaving its only copy in temporary output.
 
 ### SSH and connection security
 

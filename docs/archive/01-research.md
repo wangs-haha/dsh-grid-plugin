@@ -1,5 +1,8 @@
 # 01 · 需求调研
 
+> 历史档案：保留原始调研、计划与当时的验证结果，不代表当前实现或维护约束。
+> 当前行为以 [使用指南](<../user-guide.md>)、[架构](<../architecture.md>) 和 [测试指南](<../testing.md>) 为准。
+
 > 参考项目：[`yisier/rustgrid`](https://github.com/yisier/rustgrid)（Apache-2.0）
 > 目标：在 DeepSeek Harness (DSH) 中以插件形式提供「连接并管理数据库」的能力。
 > 调研时间：2026-11-04 · 运行环境：DSH Desktop / Windows / Node v24.14.0

@@ -71,6 +71,7 @@ function SecretField(props: {
   draft: SecretDraft
   hasSaved: boolean
   multiline?: boolean
+  wide?: boolean
   disabled: boolean
   required?: boolean
   hint?: string
@@ -88,7 +89,7 @@ function SecretField(props: {
       : undefined
 
   return (
-    <div className="dg-field-wrap">
+    <div className={`dg-field-wrap${props.wide ? ' dg-connection-wide' : ''}`}>
       <Field label={props.label} required={props.required} hint={statusHint}>
         <div className="dg-input-affix-wrapper">
           {props.multiline ? (
@@ -124,9 +125,10 @@ function SecretField(props: {
               <button
                 type="button"
                 className="dg-input-action-btn"
-                title={showPassword ? 'Hide password' : 'Show password'}
+                title={t(showPassword ? 'hidePassword' : 'showPassword')}
+                aria-label={t(showPassword ? 'hidePassword' : 'showPassword')}
+                aria-pressed={showPassword}
                 onClick={() => setShowPassword(!showPassword)}
-                tabIndex={-1}
               >
                 <Icon name={showPassword ? 'eyeOff' : 'eye'} size={13} />
               </button>
@@ -162,6 +164,7 @@ export function ConnectionDialog(props: ConnectionDialogProps): JSX.Element {
   const initial = props.initial
   const [engine, setEngine] = useState<string>(initial?.engine ?? 'sqlite')
   const [tab, setTab] = useState<ConnectionTab>('general')
+  const [organizationOpen, setOrganizationOpen] = useState(Boolean(initial?.group || (initial?.color && initial.color !== 'none')))
   const [form, setForm] = useState(() => ({
     name: initial?.name ?? '',
     group: initial?.group ?? '',
@@ -197,6 +200,9 @@ export function ConnectionDialog(props: ConnectionDialogProps): JSX.Element {
   const info = engines.find((entry) => entry.id === engine)
   const network = engine !== 'sqlite' && info?.kind !== 'file'
   const busy = testing || saving
+  const suggestedName = network
+    ? `${info?.label ?? engine} · ${form.host.trim() || '127.0.0.1'}${engine !== 'redis' && form.database.trim() ? ` / ${form.database.trim()}` : ''}`
+    : form.file.trim().split(/[\\/]/).pop() || info?.label || 'SQLite'
   const set = (key: keyof typeof form) => (event: React.ChangeEvent<HTMLInputElement>) =>
     setForm((current) => ({ ...current, [key]: event.target.value }))
   const setSshField = (key: 'host' | 'port' | 'username' | 'hostFingerprint') => (event: React.ChangeEvent<HTMLInputElement>) =>
@@ -246,7 +252,7 @@ export function ConnectionDialog(props: ConnectionDialogProps): JSX.Element {
 
   const payload = (): ConnectionInput => {
     const body: ConnectionInput = {
-      name: form.name.trim(),
+      name: form.name.trim() || suggestedName,
       engine: engine as ConnectionInput['engine'],
       group: form.group.trim(),
       host: form.host.trim(),
@@ -324,31 +330,33 @@ export function ConnectionDialog(props: ConnectionDialogProps): JSX.Element {
       title={initial ? t('edit') : t('newConnection')}
       onClose={props.onClose}
       busy={busy}
-      width={600}
+      width={840}
+      className="dg-connection-dialog"
       footer={
-        <div style={{ display: 'flex', alignItems: 'center', width: '100%', gap: 8 }}>
+        <div className="dg-connection-footer">
           <Button onClick={() => void test()} disabled={busy}>
             {testing ? <Spinner /> : null}
             {t('test')}
           </Button>
           {probe?.text ? (
             <span
-              className={probe.ok ? 'dg-tag dg-tag-green' : 'dg-tag dg-tag-red'}
-              style={{ maxWidth: 250, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
+              className={`dg-connection-probe ${probe.ok ? 'dg-tag dg-tag-green' : 'dg-tag dg-tag-red'}`}
+              role="status"
               title={probe.text}
             >
               <Icon name={probe.ok ? 'check' : 'alert'} size={11} />
               {probe.text}
             </span>
           ) : null}
-          <div style={{ flex: 1 }} />
-          <Button onClick={props.onClose} disabled={busy}>
-            {t('cancel')}
-          </Button>
-          <Button variant="primary" onClick={() => void save()} disabled={busy}>
-            {saving ? <Spinner /> : null}
-            {t('save')}
-          </Button>
+          <div className="dg-connection-actions">
+            <Button onClick={props.onClose} disabled={busy}>
+              {t('cancel')}
+            </Button>
+            <Button variant="primary" onClick={() => void save()} disabled={busy}>
+              {saving ? <Spinner /> : null}
+              {t('save')}
+            </Button>
+          </div>
         </div>
       }
     >
@@ -359,6 +367,8 @@ export function ConnectionDialog(props: ConnectionDialogProps): JSX.Element {
             key={entry.id}
             type="button"
             className={`dg-engine${entry.id === engine ? ' dg-engine-active' : ''}`}
+            aria-pressed={entry.id === engine}
+            disabled={busy}
             onClick={() => {
               if (entry.id === engine) return
               setEngine(entry.id)
@@ -429,67 +439,70 @@ export function ConnectionDialog(props: ConnectionDialogProps): JSX.Element {
           className="dg-tab-panel"
           style={{ display: tab === 'general' ? 'flex' : 'none' }}
         >
-          <div className="dg-form">
-            <Field label={t('name')} required>
-              <Input value={form.name} onChange={set('name')} placeholder={info?.label ?? 'Connection Name'} />
+          <div className="dg-connection-grid">
+            <Field label={t('name')} wide hint={t('nameAutoHint')}>
+              <Input value={form.name} onChange={set('name')} placeholder={suggestedName} disabled={busy} />
             </Field>
 
-            {info?.kind === 'file' ? (
-              <Field label={t('file')} required hint="e.g. D:\\data\\app.db">
-                <Input value={form.file} onChange={set('file')} placeholder="C:/data/app.db" />
+            {!network ? (
+              <Field label={t('file')} wide required>
+                <Input value={form.file} onChange={set('file')} placeholder="C:/data/app.db" disabled={busy} />
               </Field>
             ) : (
               <>
-                <Field label={t('host')} required hint={ssh.enabled ? t('sshDatabaseHostHint') : undefined}>
-                  <Input value={form.host} onChange={set('host')} placeholder="127.0.0.1" />
-                </Field>
-
-                <Field label={t('port')} required>
-                  <Input value={form.port} onChange={set('port')} placeholder={String(info?.defaultPort ?? '')} />
-                </Field>
-
+                <div className="dg-connection-address dg-connection-wide">
+                  <Field label={t('host')} required hint={ssh.enabled ? t('sshDatabaseHostHint') : undefined}>
+                    <Input value={form.host} onChange={set('host')} placeholder="127.0.0.1" disabled={busy} />
+                  </Field>
+                  <Field label={t('port')}>
+                    <Input value={form.port} onChange={set('port')} inputMode="numeric" placeholder={String(info?.defaultPort ?? '')} disabled={busy} />
+                  </Field>
+                </div>
                 <Field label={t('user')} required={engine !== 'redis'}>
-                  <Input value={form.user} onChange={set('user')} placeholder={engine === 'redis' ? t('optional') : 'root'} />
+                  <Input value={form.user} onChange={set('user')} placeholder={engine === 'redis' ? t('optional') : 'root'} disabled={busy} />
                 </Field>
-
                 <SecretField label={t('password')} {...secretProps('password', initial?.hasPassword ?? false)} placeholder={t('optional')} />
-
                 {engine === 'redis' ? (
-                  <Field label={t('redisDb')}>
-                    <Input value={form.redisDb} onChange={set('redisDb')} inputMode="numeric" placeholder="0" />
+                  <Field label={t('redisDb')} wide>
+                    <Input value={form.redisDb} onChange={set('redisDb')} inputMode="numeric" placeholder="0" disabled={busy} />
                   </Field>
                 ) : (
-                  <Field label={t('database')} hint={t('optional')}>
-                    <Input value={form.database} onChange={set('database')} placeholder={t('optional')} />
+                  <Field label={t('database')} wide>
+                    <Input value={form.database} onChange={set('database')} placeholder={t('optional')} disabled={busy} />
                   </Field>
                 )}
               </>
             )}
+          </div>
 
-            <Field label={t('group')} hint={t('optional')}>
-              <Input value={form.group} onChange={set('group')} placeholder="dev / staging / prod" />
-            </Field>
-
-            <div className="dg-field ant-form-item">
-              <span className="dg-field-label ant-form-item-label">{t('color')}</span>
-              <div className="dg-colors">
-                {SWATCHES.map((swatch) => (
-                  <button
-                    key={swatch.value}
-                    type="button"
-                    className={`dg-swatch${swatch.value === 'none' ? ' dg-swatch-none' : ''}${form.color === swatch.value ? ' dg-swatch-on' : ''}`}
-                    style={{ background: swatch.color }}
-                    title={swatch.value}
-                    aria-label={swatch.value}
-                    aria-pressed={form.color === swatch.value}
-                    onClick={() => setForm((current) => ({ ...current, color: swatch.value }))}
-                  >
-                    {form.color === swatch.value ? <Icon name="check" size={10} /> : null}
-                  </button>
-                ))}
+          <details className="dg-connection-options" open={organizationOpen} onToggle={(event) => setOrganizationOpen(event.currentTarget.open)}>
+            <summary>{t('connectionOptions')}</summary>
+            <div className="dg-connection-grid">
+              <Field label={t('group')}>
+                <Input value={form.group} onChange={set('group')} placeholder="dev / staging / prod" disabled={busy} />
+              </Field>
+              <div className="dg-field" role="group" aria-label={t('color')}>
+                <span className="dg-field-label">{t('color')}</span>
+                <div className="dg-colors">
+                  {SWATCHES.map((swatch) => (
+                    <button
+                      key={swatch.value}
+                      type="button"
+                      className={`dg-swatch${swatch.value === 'none' ? ' dg-swatch-none' : ''}${form.color === swatch.value ? ' dg-swatch-on' : ''}`}
+                      style={{ background: swatch.color }}
+                      title={t(`color${swatch.value[0].toUpperCase()}${swatch.value.slice(1)}`)}
+                      aria-label={t(`color${swatch.value[0].toUpperCase()}${swatch.value.slice(1)}`)}
+                      aria-pressed={form.color === swatch.value}
+                      disabled={busy}
+                      onClick={() => setForm((current) => ({ ...current, color: swatch.value }))}
+                    >
+                      {form.color === swatch.value ? <Icon name="check" size={10} /> : null}
+                    </button>
+                  ))}
+                </div>
               </div>
             </div>
-          </div>
+          </details>
         </div>
 
         {/* Tab 2: SSH */}
@@ -501,7 +514,7 @@ export function ConnectionDialog(props: ConnectionDialogProps): JSX.Element {
             className="dg-tab-panel"
             style={{ display: tab === 'ssh' ? 'flex' : 'none' }}
           >
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+            <div className="dg-connection-section">
               <label className="dg-field-label dg-checkbox-row">
                 <input
                   type="checkbox"
@@ -512,21 +525,21 @@ export function ConnectionDialog(props: ConnectionDialogProps): JSX.Element {
                     setProbe(null)
                   }}
                 />
-                <span style={{ fontWeight: 600 }}>{t('sshEnable')}</span>
-                <span className={`dg-tag${ssh.enabled ? ' dg-tag-strong' : ''}`}>{ssh.enabled ? 'Active' : 'Off'}</span>
+                <span>{t('sshEnable')}</span>
               </label>
 
               {ssh.enabled ? (
                 <>
                   <div className="dg-field-hint">{t('sshSingleHopHint')}</div>
-                  <div className="dg-form">
-                    <Field label={t('sshHost')} required>
-                      <Input value={ssh.host} onChange={setSshField('host')} required disabled={busy} autoComplete="off" placeholder="jump.example.com" />
-                    </Field>
-
-                    <Field label={t('sshPort')} required>
-                      <Input value={ssh.port} onChange={setSshField('port')} required inputMode="numeric" disabled={busy} placeholder="22" />
-                    </Field>
+                  <div className="dg-connection-grid">
+                    <div className="dg-connection-address dg-connection-wide">
+                      <Field label={t('sshHost')} required>
+                        <Input value={ssh.host} onChange={setSshField('host')} required disabled={busy} autoComplete="off" placeholder="jump.example.com" />
+                      </Field>
+                      <Field label={t('sshPort')}>
+                        <Input value={ssh.port} onChange={setSshField('port')} required inputMode="numeric" disabled={busy} placeholder="22" />
+                      </Field>
+                    </div>
 
                     <Field label={t('sshUsername')} required>
                       <Input value={ssh.username} onChange={setSshField('username')} required disabled={busy} autoComplete="off" placeholder="deploy" />
@@ -544,7 +557,7 @@ export function ConnectionDialog(props: ConnectionDialogProps): JSX.Element {
                       </Select>
                     </Field>
 
-                    <Field label={t('sshHostFingerprint')} required hint={t('sshFingerprintHint')}>
+                    <Field label={t('sshHostFingerprint')} wide required hint={t('sshFingerprintHint')}>
                       <Input
                         value={ssh.hostFingerprint}
                         onChange={setSshField('hostFingerprint')}
@@ -557,18 +570,19 @@ export function ConnectionDialog(props: ConnectionDialogProps): JSX.Element {
                     </Field>
 
                     {ssh.authType === 'password' ? (
-                      <SecretField label={t('sshPassword')} required {...secretProps('sshPassword', initial?.ssh?.hasPassword ?? false)} />
+                      <SecretField label={t('sshPassword')} wide required {...secretProps('sshPassword', initial?.ssh?.hasPassword ?? false)} />
                     ) : (
                       <>
                         <SecretField
                           label={t('sshPrivateKey')}
                           multiline
+                          wide
                           required
                           hint={t('sshPrivateKeyHint')}
                           placeholder="-----BEGIN OPENSSH PRIVATE KEY-----"
                           {...secretProps('privateKey', initial?.ssh?.hasPrivateKey ?? false)}
                         />
-                        <SecretField label={t('sshPassphrase')} hint={t('optional')} placeholder={t('optional')} {...secretProps('passphrase', initial?.ssh?.hasPassphrase ?? false)} />
+                        <SecretField label={t('sshPassphrase')} wide placeholder={t('optional')} {...secretProps('passphrase', initial?.ssh?.hasPassphrase ?? false)} />
                       </>
                     )}
                   </div>
@@ -595,10 +609,11 @@ export function ConnectionDialog(props: ConnectionDialogProps): JSX.Element {
             className="dg-tab-panel"
             style={{ display: tab === 'ssl' ? 'flex' : 'none' }}
           >
-            <div className="dg-form">
-              <Field label="TLS / SSL" required hint={engine === 'sqlserver' ? t('sqlserverVerifyCaUnsupported') : undefined}>
+            <div className="dg-connection-grid">
+              <Field label="TLS / SSL" wide hint={engine === 'sqlserver' ? t('sqlserverVerifyCaUnsupported') : undefined}>
                 <Select
                   value={form.sslMode}
+                  disabled={busy}
                   onChange={(event) =>
                     setForm((current) => ({
                       ...current,
@@ -613,8 +628,8 @@ export function ConnectionDialog(props: ConnectionDialogProps): JSX.Element {
                 </Select>
               </Field>
               {form.sslMode !== 'disable' ? (
-                <Field label={t('tlsServerName')} hint={t('tlsServerNameHint')}>
-                  <Input value={form.tlsServerName} onChange={set('tlsServerName')} placeholder={form.host.trim()} />
+                <Field label={t('tlsServerName')} wide hint={t('tlsServerNameHint')}>
+                  <Input value={form.tlsServerName} onChange={set('tlsServerName')} placeholder={form.host.trim()} disabled={busy} />
                 </Field>
               ) : null}
             </div>
