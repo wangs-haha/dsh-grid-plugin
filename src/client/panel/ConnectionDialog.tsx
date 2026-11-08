@@ -2,7 +2,7 @@
  * Create or edit a connection.
  *
  * Engines are cards with their own mark and tags, the environment colour is a
- * swatch row, and the form is split into labelled sections instead of one block.
+ * swatch row, and the form is organized cleanly into tabs (General, SSH, SSL).
  * Switching engines stays pure local state: no driver, no network.
  */
 
@@ -71,6 +71,7 @@ interface SecretDraft {
 }
 
 type SecretName = 'password' | 'sshPassword' | 'privateKey' | 'passphrase'
+type ConnectionTab = 'general' | 'ssh' | 'ssl'
 
 /** A blank field never deletes a saved secret; only the explicit action does. */
 function SecretField(props: {
@@ -129,6 +130,7 @@ export function ConnectionDialog(props: ConnectionDialogProps): JSX.Element {
   const { t, engines } = props
   const initial = props.initial
   const [engine, setEngine] = useState<string>(initial?.engine ?? 'sqlite')
+  const [tab, setTab] = useState<ConnectionTab>('general')
   const [form, setForm] = useState(() => ({
     name: initial?.name ?? '',
     group: initial?.group ?? '',
@@ -193,13 +195,17 @@ export function ConnectionDialog(props: ConnectionDialogProps): JSX.Element {
     let message = ''
     if (network && engine === 'sqlserver' && form.sslMode === 'verify-ca') {
       message = t('sqlserverVerifyCaUnsupported')
+      setTab('ssl')
     } else if (network && ssh.enabled) {
       if (!ssh.host.trim() || !ssh.username.trim() || !['password', 'privateKey'].includes(ssh.authType)) {
         message = t('sshFieldsRequired')
+        setTab('ssh')
       } else if (!/^\d+$/.test(ssh.port) || Number(ssh.port) < 1 || Number(ssh.port) > 65535) {
         message = t('sshPortInvalid')
+        setTab('ssh')
       } else if (!/^SHA256:[A-Za-z0-9+/]{43}=?$/.test(ssh.hostFingerprint.trim())) {
         message = t('sshFingerprintInvalid')
+        setTab('ssh')
       }
     }
     setError(message)
@@ -310,6 +316,7 @@ export function ConnectionDialog(props: ConnectionDialogProps): JSX.Element {
         </>
       }
     >
+      {/* 1. Compact Engine Picker */}
       <div className="dg-engines">
         {engines.map((entry) => (
           <button
@@ -321,10 +328,11 @@ export function ConnectionDialog(props: ConnectionDialogProps): JSX.Element {
               setEngine(entry.id)
               setForm((current) => ({ ...current, port: String(entry.defaultPort || ''), sslMode: 'disable' }))
               setProbe(null)
+              if (entry.kind === 'file') setTab('general')
             }}
           >
             <span className="dg-engine-head">
-              <EngineLogo engine={entry.id} size={24} />
+              <EngineLogo engine={entry.id} size={22} />
               <span className="dg-engine-name">{entry.label}</span>
             </span>
             <span className="dg-tags">
@@ -338,6 +346,7 @@ export function ConnectionDialog(props: ConnectionDialogProps): JSX.Element {
         ))}
       </div>
 
+      {/* 2. Connection Summary Pill Row */}
       <div className="dg-tags dg-summary">
         <span className="dg-tag dg-tag-strong">{info?.label ?? engine}</span>
         {endpoint ? <span className="dg-tag">{endpoint}</span> : null}
@@ -347,162 +356,257 @@ export function ConnectionDialog(props: ConnectionDialogProps): JSX.Element {
         {network && ssh.enabled ? <span className="dg-tag">SSH</span> : null}
       </div>
 
-      <section className="dg-form-section">
-        <div className="dg-section-title">{t('identity')}</div>
-        <div className="dg-form">
-          <Field label={t('name')}>
-            <Input value={form.name} onChange={set('name')} placeholder={info?.label} />
-          </Field>
-          <Field label={t('group')}>
-            <Input value={form.group} onChange={set('group')} placeholder="dev" />
-          </Field>
-        </div>
-        <div className="dg-colors">
-          <span className="dg-field-label">{t('color')}</span>
-          {SWATCHES.map((swatch) => (
-            <button
-              key={swatch.value}
-              type="button"
-              className={`dg-swatch${swatch.value === 'none' ? ' dg-swatch-none' : ''}${form.color === swatch.value ? ' dg-swatch-on' : ''}`}
-              style={{ background: swatch.color }}
-              title={swatch.value}
-              aria-label={swatch.value}
-              aria-pressed={form.color === swatch.value}
-              onClick={() => setForm((current) => ({ ...current, color: swatch.value }))}
-            >
-              {form.color === swatch.value ? <Icon name="check" size={10} /> : null}
-            </button>
-          ))}
-        </div>
-      </section>
-
-      <section className="dg-form-section">
-        {/* The file section holds a single field, so a heading would only repeat
-            the field's own label. */}
-        {info?.kind === 'file' ? null : <div className="dg-section-title">{t('server')}</div>}
-        {info?.kind === 'file' ? (
-          <div className="dg-form">
-            <Field label={t('file')} wide hint="e.g. D:\\data\\app.db">
-              <Input value={form.file} onChange={set('file')} placeholder="C:/data/app.db" />
-            </Field>
-          </div>
-        ) : (
-          <div className="dg-form">
-            <Field label={t('host')} hint={ssh.enabled ? t('sshDatabaseHostHint') : undefined}>
-              <Input value={form.host} onChange={set('host')} />
-            </Field>
-            <Field label={t('port')}>
-              <Input value={form.port} onChange={set('port')} placeholder={String(info?.defaultPort ?? '')} />
-            </Field>
-            <Field label={t('user')}>
-              <Input value={form.user} onChange={set('user')} />
-            </Field>
-            <SecretField label={t('password')} {...secretProps('password', initial?.hasPassword ?? false)} />
-            {engine === 'redis' ? (
-              <Field label={t('redisDb')}>
-                <Input value={form.redisDb} onChange={set('redisDb')} inputMode="numeric" />
-              </Field>
-            ) : (
-              <Field label={t('database')}>
-                <Input value={form.database} onChange={set('database')} placeholder="optional" />
-              </Field>
-            )}
-            <Field label="TLS / SSL" hint={engine === 'sqlserver' ? t('sqlserverVerifyCaUnsupported') : undefined}>
-              <Select
-                value={form.sslMode}
-                onChange={(event) =>
-                  setForm((current) => ({
-                    ...current,
-                    sslMode: event.target.value as ConnectionInput['sslMode'] & string,
-                  }))
-                }
-              >
-                <option value="disable">{t('sslDisable')}</option>
-                <option value="require">{t('sslRequire')}</option>
-                <option value="verify-ca" disabled={engine === 'sqlserver'}>{t('sslVerifyCa')}</option>
-                <option value="verify-full">{t('sslVerifyFull')}</option>
-              </Select>
-            </Field>
-            {form.sslMode !== 'disable' ? (
-              <Field label={t('tlsServerName')} hint={t('tlsServerNameHint')}>
-                <Input value={form.tlsServerName} onChange={set('tlsServerName')} placeholder={form.host.trim()} />
-              </Field>
-            ) : null}
-          </div>
-        )}
-      </section>
-
+      {/* 3. Modern Tab Switcher */}
       {network ? (
-        <section className="dg-form-section">
-          <div className="dg-section-title">{t('sshSection')}</div>
-          <label className="dg-field-label" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <input
-              type="checkbox"
-              checked={ssh.enabled}
-              disabled={busy}
-              onChange={(event) => {
-                setSsh((current) => ({ ...current, enabled: event.target.checked }))
-                setProbe(null)
-              }}
-            />
-            {t('sshEnable')}
-          </label>
-          {ssh.enabled ? (
-            <>
-              <div className="dg-field-hint">{t('sshSingleHopHint')}</div>
+        <div className="dg-dialog-tabs" role="tablist">
+          <button
+            type="button"
+            role="tab"
+            id="tab-btn-general"
+            aria-selected={tab === 'general'}
+            aria-controls="tab-pane-general"
+            className={`dg-dialog-tab${tab === 'general' ? ' dg-dialog-tab-active' : ''}`}
+            onClick={() => setTab('general')}
+          >
+            <Icon name="database" size={13} />
+            <span>{t('tabGeneral')}</span>
+          </button>
+
+          <button
+            type="button"
+            role="tab"
+            id="tab-btn-ssh"
+            aria-selected={tab === 'ssh'}
+            aria-controls="tab-pane-ssh"
+            className={`dg-dialog-tab${tab === 'ssh' ? ' dg-dialog-tab-active' : ''}`}
+            onClick={() => setTab('ssh')}
+          >
+            <Icon name="link" size={13} />
+            <span>{t('sshSection')}</span>
+            {ssh.enabled ? <span className="dg-tab-dot-badge dg-tab-dot-active" /> : null}
+          </button>
+
+          <button
+            type="button"
+            role="tab"
+            id="tab-btn-ssl"
+            aria-selected={tab === 'ssl'}
+            aria-controls="tab-pane-ssl"
+            className={`dg-dialog-tab${tab === 'ssl' ? ' dg-dialog-tab-active' : ''}`}
+            onClick={() => setTab('ssl')}
+          >
+            <Icon name="shield" size={13} />
+            <span>{t('tabSsl')}</span>
+            {form.sslMode !== 'disable' ? <span className="dg-tab-dot-badge dg-tab-dot-active" /> : null}
+          </button>
+        </div>
+      ) : null}
+
+      {/* 4. Tab Panes: All kept mounted in DOM so form drafts and controlled queries persist */}
+      <div className="dg-dialog-tab-body">
+        {/* Tab 1: General */}
+        <div
+          role="tabpanel"
+          id="tab-pane-general"
+          aria-labelledby="tab-btn-general"
+          className="dg-tab-panel"
+          style={{ display: tab === 'general' ? 'flex' : 'none' }}
+        >
+          <section className="dg-form-section" style={network ? { borderTop: 0, paddingTop: 0 } : undefined}>
+            <div className="dg-section-title">{t('identity')}</div>
+            <div className="dg-form">
+              <Field label={t('name')}>
+                <Input value={form.name} onChange={set('name')} placeholder={info?.label} />
+              </Field>
+              <Field label={t('group')}>
+                <Input value={form.group} onChange={set('group')} placeholder="dev" />
+              </Field>
+            </div>
+            <div className="dg-colors">
+              <span className="dg-field-label">{t('color')}</span>
+              {SWATCHES.map((swatch) => (
+                <button
+                  key={swatch.value}
+                  type="button"
+                  className={`dg-swatch${swatch.value === 'none' ? ' dg-swatch-none' : ''}${form.color === swatch.value ? ' dg-swatch-on' : ''}`}
+                  style={{ background: swatch.color }}
+                  title={swatch.value}
+                  aria-label={swatch.value}
+                  aria-pressed={form.color === swatch.value}
+                  onClick={() => setForm((current) => ({ ...current, color: swatch.value }))}
+                >
+                  {form.color === swatch.value ? <Icon name="check" size={10} /> : null}
+                </button>
+              ))}
+            </div>
+          </section>
+
+          <section className="dg-form-section">
+            {info?.kind === 'file' ? null : <div className="dg-section-title">{t('server')}</div>}
+            {info?.kind === 'file' ? (
               <div className="dg-form">
-                <Field label={t('sshHost')}>
-                  <Input value={ssh.host} onChange={setSshField('host')} required disabled={busy} autoComplete="off" />
+                <Field label={t('file')} wide hint="e.g. D:\\data\\app.db">
+                  <Input value={form.file} onChange={set('file')} placeholder="C:/data/app.db" />
                 </Field>
-                <Field label={t('sshPort')}>
-                  <Input value={ssh.port} onChange={setSshField('port')} required inputMode="numeric" disabled={busy} />
+              </div>
+            ) : (
+              <div className="dg-form">
+                <div className="dg-field-row dg-field-wide dg-grid-host-port">
+                  <Field label={t('host')} hint={ssh.enabled ? t('sshDatabaseHostHint') : undefined}>
+                    <Input value={form.host} onChange={set('host')} />
+                  </Field>
+                  <Field label={t('port')}>
+                    <Input value={form.port} onChange={set('port')} placeholder={String(info?.defaultPort ?? '')} />
+                  </Field>
+                </div>
+                <Field label={t('user')}>
+                  <Input value={form.user} onChange={set('user')} />
                 </Field>
-                <Field label={t('sshUsername')}>
-                  <Input value={ssh.username} onChange={setSshField('username')} required disabled={busy} autoComplete="off" />
-                </Field>
-                <Field label={t('sshAuthType')}>
-                  <Select
-                    value={ssh.authType}
-                    disabled={busy}
-                    required
-                    onChange={(event) => changeAuthType(event.target.value as SshAuthType)}
-                  >
-                    <option value="password">{t('sshAuthPassword')}</option>
-                    <option value="privateKey">{t('sshAuthPrivateKey')}</option>
-                  </Select>
-                </Field>
-                <Field label={t('sshHostFingerprint')} wide hint={t('sshFingerprintHint')}>
-                  <Input
-                    value={ssh.hostFingerprint}
-                    onChange={setSshField('hostFingerprint')}
-                    placeholder="SHA256:…"
-                    required
-                    disabled={busy}
-                    autoComplete="off"
-                    spellCheck={false}
-                  />
-                </Field>
-                {ssh.authType === 'password' ? (
-                  <SecretField label={t('sshPassword')} {...secretProps('sshPassword', initial?.ssh?.hasPassword ?? false)} />
+                <SecretField label={t('password')} {...secretProps('password', initial?.hasPassword ?? false)} />
+                {engine === 'redis' ? (
+                  <Field label={t('redisDb')}>
+                    <Input value={form.redisDb} onChange={set('redisDb')} inputMode="numeric" />
+                  </Field>
                 ) : (
-                  <>
-                    <div className="dg-field-wide">
-                      <SecretField
-                        label={t('sshPrivateKey')}
-                        multiline
-                        {...secretProps('privateKey', initial?.ssh?.hasPrivateKey ?? false)}
-                      />
-                      <div className="dg-field-hint">{t('sshPrivateKeyHint')}</div>
-                    </div>
-                    <SecretField label={t('sshPassphrase')} {...secretProps('passphrase', initial?.ssh?.hasPassphrase ?? false)} />
-                  </>
+                  <Field label={t('database')}>
+                    <Input value={form.database} onChange={set('database')} placeholder="optional" />
+                  </Field>
                 )}
               </div>
-              <Banner>{t('sshSecurityHint')}</Banner>
-            </>
-          ) : initial?.ssh ? <div className="dg-field-hint">{t('sshDisableHint')}</div> : null}
-        </section>
-      ) : null}
+            )}
+          </section>
+        </div>
+
+        {/* Tab 2: SSH */}
+        {network ? (
+          <div
+            role="tabpanel"
+            id="tab-pane-ssh"
+            aria-labelledby="tab-btn-ssh"
+            className="dg-tab-panel"
+            style={{ display: tab === 'ssh' ? 'flex' : 'none' }}
+          >
+            <section className="dg-form-section" style={{ borderTop: 0, paddingTop: 0 }}>
+              <div className="dg-section-title">{t('sshSection')}</div>
+              <label className="dg-field-label dg-checkbox-row">
+                <input
+                  type="checkbox"
+                  checked={ssh.enabled}
+                  disabled={busy}
+                  onChange={(event) => {
+                    setSsh((current) => ({ ...current, enabled: event.target.checked }))
+                    setProbe(null)
+                  }}
+                />
+                <span style={{ fontWeight: 600 }}>{t('sshEnable')}</span>
+                <span className={`dg-tag${ssh.enabled ? ' dg-tag-strong' : ''}`}>{ssh.enabled ? 'Active' : 'Off'}</span>
+              </label>
+
+              {ssh.enabled ? (
+                <>
+                  <div className="dg-field-hint">{t('sshSingleHopHint')}</div>
+                  <div className="dg-form">
+                    <div className="dg-field-row dg-field-wide dg-grid-host-port">
+                      <Field label={t('sshHost')}>
+                        <Input value={ssh.host} onChange={setSshField('host')} required disabled={busy} autoComplete="off" />
+                      </Field>
+                      <Field label={t('sshPort')}>
+                        <Input value={ssh.port} onChange={setSshField('port')} required inputMode="numeric" disabled={busy} />
+                      </Field>
+                    </div>
+                    <Field label={t('sshUsername')}>
+                      <Input value={ssh.username} onChange={setSshField('username')} required disabled={busy} autoComplete="off" />
+                    </Field>
+                    <Field label={t('sshAuthType')}>
+                      <Select
+                        value={ssh.authType}
+                        disabled={busy}
+                        required
+                        onChange={(event) => changeAuthType(event.target.value as SshAuthType)}
+                      >
+                        <option value="password">{t('sshAuthPassword')}</option>
+                        <option value="privateKey">{t('sshAuthPrivateKey')}</option>
+                      </Select>
+                    </Field>
+                    <Field label={t('sshHostFingerprint')} wide hint={t('sshFingerprintHint')}>
+                      <Input
+                        value={ssh.hostFingerprint}
+                        onChange={setSshField('hostFingerprint')}
+                        placeholder="SHA256:…"
+                        required
+                        disabled={busy}
+                        autoComplete="off"
+                        spellCheck={false}
+                      />
+                    </Field>
+                    {ssh.authType === 'password' ? (
+                      <SecretField label={t('sshPassword')} {...secretProps('sshPassword', initial?.ssh?.hasPassword ?? false)} />
+                    ) : (
+                      <>
+                        <div className="dg-field-wide">
+                          <SecretField
+                            label={t('sshPrivateKey')}
+                            multiline
+                            {...secretProps('privateKey', initial?.ssh?.hasPrivateKey ?? false)}
+                          />
+                          <div className="dg-field-hint">{t('sshPrivateKeyHint')}</div>
+                        </div>
+                        <SecretField label={t('sshPassphrase')} {...secretProps('passphrase', initial?.ssh?.hasPassphrase ?? false)} />
+                      </>
+                    )}
+                  </div>
+                  <Banner>{t('sshSecurityHint')}</Banner>
+                </>
+              ) : initial?.ssh ? (
+                <div className="dg-field-hint">{t('sshDisableHint')}</div>
+              ) : (
+                <div className="dg-tab-placeholder">
+                  <Icon name="link" size={16} />
+                  <span>{t('sshSingleHopHint')}</span>
+                </div>
+              )}
+            </section>
+          </div>
+        ) : null}
+
+        {/* Tab 3: SSL / TLS */}
+        {network ? (
+          <div
+            role="tabpanel"
+            id="tab-pane-ssl"
+            aria-labelledby="tab-btn-ssl"
+            className="dg-tab-panel"
+            style={{ display: tab === 'ssl' ? 'flex' : 'none' }}
+          >
+            <section className="dg-form-section" style={{ borderTop: 0, paddingTop: 0 }}>
+              <div className="dg-section-title">TLS / SSL</div>
+              <div className="dg-form">
+                <Field label="TLS / SSL" wide hint={engine === 'sqlserver' ? t('sqlserverVerifyCaUnsupported') : undefined}>
+                  <Select
+                    value={form.sslMode}
+                    onChange={(event) =>
+                      setForm((current) => ({
+                        ...current,
+                        sslMode: event.target.value as ConnectionInput['sslMode'] & string,
+                      }))
+                    }
+                  >
+                    <option value="disable">{t('sslDisable')}</option>
+                    <option value="require">{t('sslRequire')}</option>
+                    <option value="verify-ca" disabled={engine === 'sqlserver'}>{t('sslVerifyCa')}</option>
+                    <option value="verify-full">{t('sslVerifyFull')}</option>
+                  </Select>
+                </Field>
+                {form.sslMode !== 'disable' ? (
+                  <Field label={t('tlsServerName')} wide hint={t('tlsServerNameHint')}>
+                    <Input value={form.tlsServerName} onChange={set('tlsServerName')} placeholder={form.host.trim()} />
+                  </Field>
+                ) : null}
+              </div>
+            </section>
+          </div>
+        ) : null}
+      </div>
 
       {error ? (
         <Banner tone="error" onClose={() => setError('')}>

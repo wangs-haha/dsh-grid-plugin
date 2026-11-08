@@ -566,20 +566,111 @@ textarea.dg-input { height: auto; padding: var(--dg-sp-3) var(--dg-sp-3); resize
 .dg-field-label { font-size: var(--dg-fs-xs); color: var(--dg-text-2); }
 .dg-field-hint { font-size: var(--dg-fs-xs); color: var(--dg-text-2); line-height: var(--dg-lh-tight); }
 .dg-form { display: grid; grid-template-columns: 1fr 1fr; gap: var(--dg-sp-5); }
+.dg-grid-host-port {
+  display: grid;
+  grid-template-columns: minmax(0, 3fr) minmax(0, 1.2fr);
+  gap: var(--dg-sp-5);
+}
 
-.dg-engines { display: grid; grid-template-columns: repeat(auto-fit, minmax(128px, 1fr)); gap: var(--dg-sp-2); }
+.dg-engines { display: grid; grid-template-columns: repeat(auto-fit, minmax(105px, 1fr)); gap: var(--dg-sp-2); }
 .dg-engine {
   display: flex; flex-direction: column; gap: var(--dg-sp-1); align-items: flex-start;
-  padding: var(--dg-sp-3) var(--dg-sp-4);
+  padding: 8px 12px;
   border: 1px solid var(--dg-line); border-radius: var(--dg-r-md);
   background: var(--dg-bg); cursor: pointer;
   font-size: var(--dg-fs-sm); color: var(--dg-text); text-align: left;
-  transition: background var(--dg-dur-1) var(--dg-ease), border-color var(--dg-dur-1) var(--dg-ease);
+  transition: background var(--dg-dur-1) var(--dg-ease), border-color var(--dg-dur-1) var(--dg-ease), box-shadow var(--dg-dur-1) var(--dg-ease);
 }
 .dg-engine:hover:not(:disabled) { background: var(--dg-hover); }
-.dg-engine-active { border-color: var(--dg-accent); background: var(--dg-accent-soft); }
+.dg-engine-active { border-color: var(--dg-accent); background: var(--dg-accent-soft); box-shadow: 0 0 0 1px var(--dg-accent); }
 .dg-engine:disabled { opacity: 0.45; cursor: not-allowed; }
 .dg-engine-note { font-size: var(--dg-fs-xs); color: var(--dg-text-2); white-space: normal; line-height: var(--dg-lh-tight); }
+
+/* dialog tabs -------------------------------------------------------------- */
+.dg-dialog-tabs {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  border-bottom: 1px solid var(--dg-line);
+  margin-top: var(--dg-sp-1);
+}
+.dg-dialog-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 34px;
+  padding: 0 14px;
+  border: 1px solid transparent;
+  border-bottom: 0;
+  border-radius: var(--dg-r-md) var(--dg-r-md) 0 0;
+  background: transparent;
+  color: var(--dg-text-2);
+  font-size: var(--dg-fs-sm);
+  font-weight: 500;
+  cursor: pointer;
+  position: relative;
+  transition: all var(--dg-dur-1) var(--dg-ease);
+}
+.dg-dialog-tab:hover {
+  background: var(--dg-hover);
+  color: var(--dg-text);
+}
+.dg-dialog-tab-active {
+  background: var(--dg-surface-2);
+  color: var(--dg-text);
+  font-weight: 600;
+  border-color: var(--dg-line);
+}
+.dg-dialog-tab-active::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 8px;
+  right: 8px;
+  height: 2px;
+  background: var(--dg-accent);
+  border-radius: 0 0 2px 2px;
+}
+.dg-tab-dot-badge {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--dg-accent);
+  margin-left: 2px;
+  flex: none;
+}
+.dg-tab-dot-active {
+  background: var(--dg-success);
+}
+.dg-dialog-tab-body {
+  display: flex;
+  flex-direction: column;
+}
+.dg-tab-panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--dg-sp-4);
+  animation: dg-fade-in 120ms cubic-bezier(0, 0, 0.2, 1);
+}
+.dg-checkbox-row {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--dg-sp-2);
+  cursor: pointer;
+  user-select: none;
+}
+.dg-tab-placeholder {
+  display: flex;
+  align-items: center;
+  gap: var(--dg-sp-2);
+  padding: 12px 14px;
+  border-radius: var(--dg-r-md);
+  border: 1px dashed var(--dg-line);
+  background: var(--dg-surface);
+  color: var(--dg-text-2);
+  font-size: var(--dg-fs-xs);
+  line-height: var(--dg-lh-body);
+}
 
 /* overlays ----------------------------------------------------------------- */
 .dg-backdrop {

@@ -6,7 +6,7 @@ import { api } from '../lib/api'
 import { fmt } from '../lib/format'
 import type { Connection, DatabaseNode, RelationKind, RelationNode, SavedQuery, Tab } from '../lib/types'
 import { useStore, GridStore } from '../store'
-import { Banner, Button, Empty, Icon, IconButton, Menu, Splitter, type MenuItem } from '../ui/kit'
+import { Banner, Button, Empty, Icon, Menu, Splitter, type MenuItem } from '../ui/kit'
 import panelCss from '../ui/panel.css'
 import { ConnectionDialog } from './ConnectionDialog'
 import { WorkspaceDialog } from './WorkspaceDialog'
@@ -300,30 +300,6 @@ export function GridPanel({ t }: GridPanelProps): JSX.Element {
           </Button>
         ))}
       </div>
-      <div className="dg-spacer" />
-      <button
-        type="button"
-        className={`dg-binding-chip${bindings.length > 0 ? ' dg-binding-chip-active' : ''}`}
-        onClick={() => setDialog({ kind: 'workspaces' })}
-        title={bindings.length > 0 ? `${tr('boundProject')}: ${bindings.map((b) => b.connectionName || b.connectionId).join(', ')}` : tr('projectUnbound')}
-      >
-        <span className={`dg-dot${bindings.length > 0 ? ' dg-dot-open' : ''}`} />
-        <Icon name="link" size={11} />
-        <span className="dg-binding-chip-label">
-          {bindings.length > 0
-            ? `${tr('boundProject')}: ${bindings[0].connectionName || bindings[0].connectionId}${bindings.length > 1 ? ` (+${bindings.length - 1})` : ''}`
-            : tr('workspaces')}
-        </span>
-      </button>
-      <IconButton icon="refresh" title={tr('refresh')} onClick={() => { void store.connections.load(); void store.meta.load() }} />
-      <Button
-        className="dg-btn-new-conn"
-        onClick={() => setDialog({ kind: 'connection' })}
-        title={tr('newConnection')}
-      >
-        <Icon name="plus" size={11} />
-        {tr('newConnection')}
-      </Button>
     </div>
   )
 
@@ -511,6 +487,7 @@ export function GridPanel({ t }: GridPanelProps): JSX.Element {
             store={store}
             t={tr}
             selectedDatabaseKey={activeDatabaseKey}
+            onNewConnection={() => setDialog({ kind: 'connection' })}
             onSelectDatabase={openDatabase}
             onOpenTable={(connection, database, schema, relation) =>
               openTable(connection, database.name, schema, relation)

@@ -198,6 +198,14 @@ export function TreePane(props: TreePaneProps): JSX.Element {
         {t('connections')}
         <span className="dg-badge">{connections.items.length}</span>
         <div className="dg-spacer" />
+        {props.onNewConnection ? (
+          <IconButton
+            icon="plus"
+            title={t('newConnection')}
+            size={11}
+            onClick={props.onNewConnection}
+          />
+        ) : null}
         <IconButton
           icon="refresh"
           title={t('refresh')}
