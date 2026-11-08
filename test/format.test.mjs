@@ -86,3 +86,17 @@ test('CSV parsing keeps a single empty field as a row', () => {
   assert.deepEqual(parseCsv('a,b\n,\n').rows, [['', '']])
   assert.deepEqual(parseCsv('a,b\n').rows, [])
 })
+test('CSV parsing reports surplus fields and unclosed quotes instead of dropping data', () => {
+  const surplus = parseCsv('id,name\n1,Ada,unexpected\n')
+  assert.equal(surplus.rows[0].length, 2, 'the row keeps the header width')
+  assert.match(surplus.errors.join(' '), /row 2 has 3 fields/)
+
+  const unclosed = parseCsv('id,name\n1,"unfinished')
+  assert.match(unclosed.errors.join(' '), /not closed/)
+
+  const duplicate = parseCsv('id,id\n1,2\n')
+  assert.match(duplicate.errors.join(' '), /appears more than once/)
+
+  const clean = parseCsv('id,name\n1,Ada\n')
+  assert.deepEqual(clean.errors, [])
+})

@@ -647,3 +647,119 @@ test('the query tools do not require connectionId in their schema', async () => 
   assert.ok(toolset.get('grid_execute').parameters.required.includes('connectionId'))
   for (const dispose of disposers) dispose()
 })
+test('a read-only run cannot turn off the SQLite guard', async () => {
+  // The router rejects the PRAGMA write form before it reaches the engine.
+  await assert.rejects(
+    dispatch('sql', { connectionId, sql: 'PRAGMA query_only(0); PRAGMA user_version(123)', readOnly: true }),
+    /read-only/,
+  )
+  // And the engine re-asserts `query_only` before each statement, so a client
+  // that bypasses the classifier still cannot disable it for the next one.
+  const { create } = await import('../lib/drivers/sqlite.js')
+  const driver = create({ engine: 'sqlite', file: dbFile })
+  await driver.open()
+  try {
+    const before = await driver.exec(['PRAGMA user_version'])
+    const guarded = await driver.exec(['PRAGMA query_only(0)', 'PRAGMA user_version(777)'], { readOnly: true })
+    assert.ok(guarded.results[1].error, 'the second statement is refused')
+    const after = await driver.exec(['PRAGMA user_version'])
+    assert.equal(after.results[0].rows[0].user_version, before.results[0].rows[0].user_version)
+  } finally {
+    await driver.close()
+  }
+})
+
+test('rows.update refuses a key that is not the table primary key', async () => {
+  await dispatch('sql', {
+    connectionId,
+    sql: "CREATE TABLE IF NOT EXISTS key_guard (id INTEGER PRIMARY KEY, tag TEXT); INSERT INTO key_guard (tag) VALUES ('x'), ('x')",
+  })
+  await assert.rejects(
+    dispatch('rows.update', {
+      connectionId,
+      database: 'main',
+      table: 'key_guard',
+      key: { tag: 'x' },
+      changes: { tag: 'y' },
+    }),
+    /does not match the table primary key/,
+  )
+  const page = await dispatch('rows', { connectionId, database: 'main', table: 'key_guard' })
+  assert.equal(page.rows.filter((row) => row.tag === 'x').length, 2, 'neither row was touched')
+  const updated = await dispatch('rows.update', {
+    connectionId,
+    database: 'main',
+    table: 'key_guard',
+    key: { id: page.rows[0].id },
+    changes: { tag: 'y' },
+  })
+  assert.equal(updated.affected, 1)
+})
+
+test('cancel reaches the driver while a statement is still running', async () => {
+  const { SessionPool } = await import('../lib/session.js')
+  const { createRouter } = await import('../lib/api.js')
+  const local = new SessionPool()
+  let release
+  const gate = new Promise((resolve) => { release = resolve })
+  let ready
+  const started = new Promise((resolve) => { ready = resolve })
+  let cancelCalls = 0
+  const session = {
+    id: 'fixture',
+    lane: 'main',
+    engine: 'sqlite',
+    driver: {
+      async exec() {
+        ready()
+        await gate
+        return { results: [], durationMs: 0 }
+      },
+      async cancelQuery() {
+        cancelCalls += 1
+        return { cancelled: true }
+      },
+      async close() {},
+    },
+    lastUsed: Date.now(),
+  }
+  local.sessions.set(SessionPool.keyOf('fixture', 'main'), session)
+  local.resolveRecord = () => ({ id: 'fixture', engine: 'sqlite' })
+  const localDispatch = createRouter({ pool: local })
+  try {
+    const running = localDispatch('sql', { connectionId: 'fixture', sql: 'SELECT 1' })
+    await started
+    const cancel = await localDispatch('sql.cancel', { connectionId: 'fixture' })
+    assert.equal(cancel.cancelled, true, 'cancel does not wait for the running statement')
+    assert.equal(cancelCalls, 1)
+    release()
+    await running
+  } finally {
+    local.dispose()
+    await local.closeAll()
+  }
+})
+
+test('redis writes are not retried after a dropped connection', async () => {
+  const options = []
+  const stub = {
+    async withSession(_id, operation, settings) {
+      options.push(settings)
+      return operation({
+        driver: {
+          async command() {
+            return { reply: 1 }
+          },
+          async removeKey() {
+            return { deleted: 1 }
+          },
+        },
+      })
+    },
+  }
+  const { createRouter } = await import('../lib/api.js')
+  const local = createRouter({ pool: stub })
+  await local('redis.command', { connectionId: 'c', command: 'INCR n' })
+  await local('redis.delete', { connectionId: 'c', key: 'k', database: 0 })
+  assert.deepEqual(options.map((entry) => entry?.retry), [false, false])
+})

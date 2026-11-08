@@ -138,15 +138,22 @@ export function toMarkdownTable(columns: Array<{ name: string }>, rows: Record<s
  * commas, newlines and doubled quotes, and a file saved by Excel is full of all
  * three. A leading byte-order mark is dropped, and rows shorter than the header
  * are padded with empty strings so every row has the same shape.
+ *
+ * Malformed input is reported in `errors` rather than repaired silently: a row
+ * with more fields than the header used to lose the surplus, and an unclosed
+ * quote used to swallow the rest of the file as one field.
  * @param {string} text - the file contents.
- * @returns {{ header: string[], rows: string[][] }} the parsed table.
+ * @returns {{ header: string[], rows: string[][], errors: string[] }} the parsed table.
  */
-export function parseCsv(text: string): { header: string[]; rows: string[][] } {
+export function parseCsv(text: string): { header: string[]; rows: string[][]; errors: string[] } {
   const source = String(text ?? '').replace(/^\uFEFF/, '')
   const records: string[][] = []
+  const errors: string[] = []
   let record: string[] = []
   let field = ''
   let quoted = false
+  let quoteLine = 1
+  let line = 1
   let index = 0
 
   const endField = (): void => {
@@ -173,12 +180,14 @@ export function parseCsv(text: string): { header: string[]; rows: string[][] } {
         index += 1
         continue
       }
+      if (char === '\n' || char === '\r') line += 1
       field += char
       index += 1
       continue
     }
     if (char === '"' && field === '') {
       quoted = true
+      quoteLine = line
       index += 1
       continue
     }
@@ -190,11 +199,13 @@ export function parseCsv(text: string): { header: string[]; rows: string[][] } {
     if (char === '\r') {
       // A CRLF pair ends one record, not two.
       index += source[index + 1] === '\n' ? 2 : 1
+      line += 1
       endRecord()
       continue
     }
     if (char === '\n') {
       index += 1
+      line += 1
       endRecord()
       continue
     }
@@ -202,9 +213,23 @@ export function parseCsv(text: string): { header: string[]; rows: string[][] } {
     index += 1
   }
   if (field !== '' || record.length > 0) endRecord()
+  if (quoted) errors.push(`the quoted field starting on line ${quoteLine} is not closed`)
 
   const [header = [], ...rows] = records
   const width = header.length
+  if (width === 0) errors.push('the file has no header row')
+  const seen = new Set<string>()
+  header.forEach((name, position) => {
+    const trimmed = name.trim()
+    if (!trimmed) errors.push(`header field ${position + 1} is empty`)
+    if (seen.has(trimmed)) errors.push(`header "${trimmed}" appears more than once`)
+    seen.add(trimmed)
+  })
+  rows.forEach((cells, position) => {
+    if (cells.length > width) {
+      errors.push(`row ${position + 2} has ${cells.length} fields but the header has ${width}`)
+    }
+  })
   return {
     header: header.map((name) => name.trim()),
     rows: rows.map((cells) => {
@@ -212,6 +237,7 @@ export function parseCsv(text: string): { header: string[]; rows: string[][] } {
       while (padded.length < width) padded.push('')
       return padded
     }),
+    errors,
   }
 }
 

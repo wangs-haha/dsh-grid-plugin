@@ -70,10 +70,22 @@ export function GridPanel({ t }: GridPanelProps): JSX.Element {
 
   /* ------------------------------------------------------------ open tabs */
 
-  /** Default destination for a database: its table list. */
+  /** Default destination for a database: its table list, or the key browser. */
   const openDatabase = (connection: Connection, database: DatabaseNode): void => {
     const schema = database.schemas[0] ?? ''
     setScope({ connectionId: connection.id, database: database.name, schema })
+    if (connection.engine === 'redis') {
+      // Redis has keys, not relations. The key browser already existed but no
+      // normal navigation path created its tab.
+      store.tabs.open({
+        id: `redis:${connection.id}:${database.name}`,
+        kind: 'redis',
+        connectionId: connection.id,
+        database: database.name,
+        title: database.name,
+      })
+      return
+    }
     void store.catalog.loadRelations(connection.id, database.name, schema)
     store.tabs.open({
       id: `relations:${connection.id}:${database.name}:${schema}:table`,
@@ -110,18 +122,22 @@ export function GridPanel({ t }: GridPanelProps): JSX.Element {
     })
   }
 
-  const openList = (kind: 'relations' | 'routines' | 'accounts' | 'queries', relationKind: RelationKind = 'table'): void => {
+  const openList = (
+    kind: 'relations' | 'routines' | 'accounts' | 'queries',
+    relationKind: RelationKind = 'table',
+    target = scope,
+  ): void => {
     if (kind === 'queries') {
       store.tabs.open({ id: 'queries', kind: 'queries', connectionId: '', database: '', schema: '', title: tr('queries') })
       return
     }
-    if (!scope) return notify(tr('selectDatabase'), 'info')
+    if (!target) return notify(tr('selectDatabase'), 'info')
     if (kind === 'accounts') {
       store.tabs.open({
-        id: `accounts:${scope.connectionId}`,
+        id: `accounts:${target.connectionId}`,
         kind: 'accounts',
-        connectionId: scope.connectionId,
-        database: scope.database,
+        connectionId: target.connectionId,
+        database: target.database,
         schema: '',
         title: tr('users'),
       })
@@ -129,22 +145,22 @@ export function GridPanel({ t }: GridPanelProps): JSX.Element {
     }
     if (kind === 'relations') {
       store.tabs.open({
-        id: `relations:${scope.connectionId}:${scope.database}:${scope.schema}:${relationKind}`,
+        id: `relations:${target.connectionId}:${target.database}:${target.schema}:${relationKind}`,
         kind: 'relations',
-        connectionId: scope.connectionId,
-        database: scope.database,
-        schema: scope.schema,
+        connectionId: target.connectionId,
+        database: target.database,
+        schema: target.schema,
         relation: relationKind,
-        title: scope.database,
+        title: target.database,
       })
       return
     }
     store.tabs.open({
-      id: `${kind}:${scope.connectionId}:${scope.database}:${scope.schema}`,
+      id: `${kind}:${target.connectionId}:${target.database}:${target.schema}`,
       kind,
-      connectionId: scope.connectionId,
-      database: scope.database,
-      schema: scope.schema,
+      connectionId: target.connectionId,
+      database: target.database,
+      schema: target.schema,
       title: kind === 'routines' ? tr('functions') : tr('users'),
     })
   }
@@ -232,14 +248,21 @@ export function GridPanel({ t }: GridPanelProps): JSX.Element {
   }
 
   const databaseMenu = (event: React.MouseEvent, connection: Connection, database: DatabaseNode): void => {
+    const target = { connectionId: connection.id, database: database.name, schema: database.schemas[0] ?? '' }
+    const open = (kind: 'relations' | 'routines', relationKind: RelationKind = 'table'): void => {
+      // Pass the target explicitly: `setScope` is async, so reading `scope`
+      // here opened the previously selected database.
+      setScope(target)
+      openList(kind, relationKind, target)
+    }
     setMenu({
       x: event.clientX,
       y: event.clientY,
       items: [
         { label: tr('overview'), icon: 'info', onClick: () => openOverview(connection, database) },
-        { label: tr('tables'), icon: 'table', onClick: () => { setScope({ connectionId: connection.id, database: database.name, schema: database.schemas[0] ?? '' }); openList('relations', 'table') } },
-        { label: tr('views'), icon: 'view', onClick: () => { setScope({ connectionId: connection.id, database: database.name, schema: database.schemas[0] ?? '' }); openList('relations', 'view') } },
-        { label: tr('functions'), icon: 'function', onClick: () => { setScope({ connectionId: connection.id, database: database.name, schema: database.schemas[0] ?? '' }); openList('routines') } },
+        { label: tr('tables'), icon: 'table', onClick: () => open('relations', 'table') },
+        { label: tr('views'), icon: 'view', onClick: () => open('relations', 'view') },
+        { label: tr('functions'), icon: 'function', onClick: () => open('routines') },
         { separator: true },
         ...(connection.engine !== 'redis'
           ? [{ label: tr('newQuery'), icon: 'play', onClick: () => openQuery(connection, database.name) }]
@@ -358,77 +381,92 @@ export function GridPanel({ t }: GridPanelProps): JSX.Element {
     </div>
   ) : null
 
+  /**
+   * Keep every open tab mounted and hide the inactive ones.
+   *
+   * Views hold working state (SQL text, results, a running query, page and
+   * filters). Unmounting on tab switch discarded it, and a query that was still
+   * running lost its result and its Cancel button. `display: contents` keeps the
+   * active view laid out exactly as before.
+   */
   const panes = tabs.tabs.map((tab) => {
-    if (tab.id !== tabs.activeId) return null
     const connection = connectionOf(tab.connectionId)
-    switch (tab.kind) {
-      case 'overview': {
-        const database = store.connections.session(tab.connectionId).databases.find((entry) => entry.name === tab.database)
-        if (!database) return null
-        return (
-          <OverviewView
-            key={tab.id}
-            t={tr}
-            store={store}
-            connectionId={tab.connectionId}
-            database={database}
-            schemas={database.schemas}
-            onOpenRelations={(kind) => openList('relations', kind)}
-            onNewQuery={() => openQuery(connection, tab.database)}
-          />
-        )
+    const view = ((): JSX.Element | null => {
+      switch (tab.kind) {
+        case 'overview': {
+          const database = store.connections.session(tab.connectionId).databases.find((entry) => entry.name === tab.database)
+          if (!database) return null
+          return (
+            <OverviewView
+              t={tr}
+              store={store}
+              connectionId={tab.connectionId}
+              database={database}
+              schemas={database.schemas}
+              onOpenRelations={(kind) => openList('relations', kind)}
+              onNewQuery={() => openQuery(connection, tab.database)}
+            />
+          )
+        }
+        case 'table':
+          return (
+            <TableView
+              t={tr}
+              tab={tab}
+              engine={engineOf(tab.connectionId)}
+              notify={notify}
+              onNewQuery={() => openQuery(connection, tab.database)}
+            />
+          )
+        case 'sql':
+          return (
+            <SqlView
+              t={tr}
+              tab={tab}
+              tables={store.catalog.relationsOf(`${tab.connectionId}|${tab.database}|`).map((relation) => relation.name)}
+              notify={notify}
+              onSaved={() => void store.queries.load()}
+            />
+          )
+        case 'relations':
+          return (
+            <RelationsView
+              t={tr}
+              store={store}
+              connectionId={tab.connectionId}
+              database={tab.database}
+              schema={tab.schema}
+              kind={tab.relation}
+              onOpen={(relation) => {
+                if (connection) openTable(connection, tab.database, tab.schema, relation)
+              }}
+              onQuery={(relation) => openQuery(connection, tab.database, selectFrom(engineOf(tab.connectionId), relation.name))}
+              onNewQuery={() => openQuery(connection, tab.database)}
+              notify={notify}
+            />
+          )
+        case 'routines':
+          return <RoutinesView t={tr} store={store} connectionId={tab.connectionId} database={tab.database} schema={tab.schema} />
+        case 'accounts':
+          return <AccountsView t={tr} store={store} connectionId={tab.connectionId} />
+        case 'queries':
+          return <QueriesView t={tr} store={store} onOpen={openSavedQuery} notify={notify} />
+        case 'redis':
+          return <RedisView t={tr} tab={tab} notify={notify} />
+        default:
+          return null
       }
-      case 'table':
-        return (
-          <TableView
-            key={tab.id}
-            t={tr}
-            tab={tab}
-            engine={engineOf(tab.connectionId)}
-            notify={notify}
-            onNewQuery={() => openQuery(connection, tab.database)}
-          />
-        )
-      case 'sql':
-        return (
-          <SqlView
-            key={tab.id}
-            t={tr}
-            tab={tab}
-            tables={store.catalog.relationsOf(`${tab.connectionId}|${tab.database}|`).map((relation) => relation.name)}
-            notify={notify}
-            onSaved={() => void store.queries.load()}
-          />
-        )
-      case 'relations':
-        return (
-          <RelationsView
-            key={tab.id}
-            t={tr}
-            store={store}
-            connectionId={tab.connectionId}
-            database={tab.database}
-            schema={tab.schema}
-            kind={tab.relation}
-            onOpen={(relation) => {
-              if (connection) openTable(connection, tab.database, tab.schema, relation)
-            }}
-            onQuery={(relation) => openQuery(connection, tab.database, selectFrom(engineOf(tab.connectionId), relation.name))}
-            onNewQuery={() => openQuery(connection, tab.database)}
-            notify={notify}
-          />
-        )
-      case 'routines':
-        return <RoutinesView key={tab.id} t={tr} store={store} connectionId={tab.connectionId} database={tab.database} schema={tab.schema} />
-      case 'accounts':
-        return <AccountsView key={tab.id} t={tr} store={store} connectionId={tab.connectionId} />
-      case 'queries':
-        return <QueriesView key={tab.id} t={tr} store={store} onOpen={openSavedQuery} notify={notify} />
-      case 'redis':
-        return <RedisView key={tab.id} t={tr} tab={tab} notify={notify} />
-      default:
-        return null
-    }
+    })()
+    return (
+      <div
+        key={tab.id}
+        className="dg-pane"
+        style={{ display: tab.id === tabs.activeId ? 'contents' : 'none' }}
+        aria-hidden={tab.id !== tabs.activeId}
+      >
+        {view}
+      </div>
+    )
   })
 
   const status = (

@@ -6,6 +6,56 @@ changes is in [REVIEW-vs-dbx.md](REVIEW-vs-dbx.md).
 
 ## Unreleased
 
+### Reliability
+
+- **A read-only SQLite run can no longer disable its own guard.** `PRAGMA
+  query_only(0)` used to pass the classifier (it looked for `=` only), and the
+  guard was set once before the whole script. The classifier now uses a
+  read-only PRAGMA allowlist, and the driver re-asserts `query_only` before
+  every statement, so a later statement cannot write after the first one
+  disables the flag.
+- **A row write must use the table's real primary key.** The Host now checks
+  the posted key against the table description (cached briefly). A non-unique
+  field in `key` used to update or delete every matching row; that request is
+  now a 400, and a result affecting more than one row is a 409.
+- **Cancel no longer waits behind the query it cancels.** It travels on a
+  separate control path instead of the per-lane execution queue, so an endless
+  statement can actually be stopped.
+- **A disconnect during a handshake no longer resurrects the session.** Closing,
+  editing or deleting a connection invalidates an in-flight open; its driver is
+  closed and it is never registered with the old credentials.
+- **Execution stays serial across a reconnect.** The queue belongs to the
+  connection and lane, not to a driver instance, so a retried request cannot
+  overlap a new one and a stale request cannot close the healthy replacement.
+  The idle reaper also skips lanes with work in progress.
+- **Redis scoped operations cannot hit the wrong logical database.** A raw
+  `SELECT` in the console used to move the shared connection while the cached
+  index stayed put; scoped reads and deletes now re-select the requested
+  database. Raw commands and key deletion are also never retried, because
+  replaying `INCR`/`DEL` after a lost reply can write or delete twice.
+- **Switching tabs keeps SQL drafts, results and a running query.** Views stay
+  mounted and hidden, so a query no longer loses its Cancel button and its
+  result when another tab is opened. This also keeps paging, filters and scroll
+  position.
+- **Row edits are addressed by key, not by page index.** An edit captures the
+  primary key and original value when it starts; a refetch that reorders the
+  page can no longer send the draft to a different row. Editing is blocked while
+  a page is loading, and an open editor is dismissed when the page changes.
+- **Beautify preserves string literals.** It used to collapse whitespace inside
+  quoted text, changing `'a  b'` to `'a b'` — a different query and potentially
+  different written data. Only separators between tokens are normalised now.
+- **CSV import rejects malformed files instead of silently dropping fields.** A
+  row with more fields than the header, a duplicate header name and an unclosed
+  quote are reported with a row number; the import does not start.
+- **The filter builder is no longer overwritten by the old raw WHERE.** Apply
+  updates both the filter and its input, so the debounce timer cannot restore
+  the previous condition.
+- **Redis databases open the key browser.** Selecting a Redis database used to
+  open a table list; it now opens the existing key view and skips relation
+  loading.
+- **Dialogs no longer steal focus while typing.** The initial focus effect runs
+  on mount only and reads the latest close callback through a ref.
+
 ### Visual
 
 - **The panel now has layers in light mode.** Surfaces, hover and zebra striping

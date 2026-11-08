@@ -132,3 +132,73 @@ test('a cancelled statement is not retried', async () => {
     pool.dispose()
   }
 })
+test('a handshake that finishes after close is not registered', async () => {
+  let release
+  const gate = new Promise((resolve) => { release = resolve })
+  let closed = 0
+  const pool = new SessionPool({
+    createDriver: async () => ({
+      async open() {
+        await gate
+        return 'test'
+      },
+      async close() {
+        closed += 1
+      },
+    }),
+  })
+  pool.resolveRecord = () => ({ id: 'c1', engine: 'postgres' })
+  try {
+    const opening = pool.acquire('c1', 'main')
+    const closing = pool.close('c1')
+    release()
+    await closing
+    await assert.rejects(opening, /closed while it was opening/)
+    assert.equal(pool.peek('c1', 'main'), undefined, 'the stale session is not in the pool')
+    assert.equal(closed, 1, 'its driver was closed')
+  } finally {
+    pool.dispose()
+    await pool.closeAll()
+  }
+})
+
+test('queued work stays serial across a reconnect', async () => {
+  let generation = 0
+  let active = 0
+  let maxActive = 0
+  const pool = new SessionPool({
+    createDriver: async () => {
+      generation += 1
+      const opened = generation
+      return {
+        async open() {
+          return 'test'
+        },
+        async close() {},
+        async exec(label) {
+          active += 1
+          maxActive = Math.max(maxActive, active)
+          try {
+            await new Promise((resolve) => setTimeout(resolve, 1))
+            if (label === 'first' && opened === 1) throw new Error('Connection lost')
+            return label
+          } finally {
+            active -= 1
+          }
+        },
+      }
+    },
+  })
+  pool.resolveRecord = () => ({ id: 'c1', engine: 'postgres' })
+  try {
+    const results = await Promise.all([
+      pool.withSession('c1', (session) => session.driver.exec('first'), { lane: 'query' }),
+      pool.withSession('c1', (session) => session.driver.exec('second'), { lane: 'query' }),
+    ])
+    assert.deepEqual(results, ['first', 'second'])
+    assert.equal(maxActive, 1, 'the reconnect did not let two requests overlap')
+  } finally {
+    pool.dispose()
+    await pool.closeAll()
+  }
+})

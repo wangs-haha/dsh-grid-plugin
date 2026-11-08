@@ -153,7 +153,10 @@ export function beautifySql(text: string): string {
   let buffer = ''
   let depth = 0
   const flush = (): void => {
-    const value = buffer.replace(/\s+/g, ' ').trim()
+    // Only surrounding whitespace is trimmed. Collapsing every run of spaces
+    // here rewrote the *contents* of string literals, so `'a  b'` became
+    // `'a b'` — a different query, and possibly different written data.
+    const value = buffer.trim()
     if (value) parts.push(value)
     buffer = ''
   }
@@ -161,7 +164,7 @@ export function beautifySql(text: string): string {
   for (let index = 0; index < tokens.length; index += 1) {
     const token = tokens[index] as SqlToken
     if (token.type === 'ws') {
-      buffer += ' '
+      if (buffer !== '' && !buffer.endsWith(' ')) buffer += ' '
       continue
     }
     if (token.type === 'comment') {

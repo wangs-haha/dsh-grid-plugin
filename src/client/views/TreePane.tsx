@@ -75,7 +75,10 @@ export function TreePane(props: TreePaneProps): JSX.Element {
     props.onSelectDatabase(connection, database)
     const key = `${connection.id}|${database.name}`
     setOpenDatabases((current) => new Set(current).add(key))
-    await store.catalog.loadRelations(connection.id, database.name, database.schemas[0] ?? '')
+    // Redis has keys, not relations; the panel opens its key browser instead.
+    if (connection.engine !== 'redis') {
+      await store.catalog.loadRelations(connection.id, database.name, database.schemas[0] ?? '')
+    }
   }
 
   const relationRow = (
@@ -121,7 +124,9 @@ export function TreePane(props: TreePaneProps): JSX.Element {
             onClick={(event) => {
               event.stopPropagation()
               toggleKey(key, setOpenDatabases)
-              if (!open) void store.catalog.loadRelations(connection.id, database.name, schemas[0] ?? '')
+              if (!open && connection.engine !== 'redis') {
+                void store.catalog.loadRelations(connection.id, database.name, schemas[0] ?? '')
+              }
             }}
           >
             <Icon name="chevron" size={9} />

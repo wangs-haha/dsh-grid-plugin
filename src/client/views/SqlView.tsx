@@ -41,6 +41,9 @@ export function SqlView(props: SqlViewProps): JSX.Element {
   const highlightRef = useRef<HTMLPreElement>(null)
 
   const lineCount = useMemo(() => text.split('\n').length, [text])
+  // Tokenizing on every render (scroll, completion, busy) rebuilt the whole
+  // highlight tree; the text is the only input that can change it.
+  const tokens = useMemo(() => tokenizeSql(text), [text])
 
   const candidates = useMemo(() => {
     const list: Array<{ label: string; kind: string }> = []
@@ -250,7 +253,7 @@ export function SqlView(props: SqlViewProps): JSX.Element {
           </div>
           <div className="dg-code">
             <pre className="dg-hl" ref={highlightRef} aria-hidden>
-              {tokenizeSql(text).map((token, index) =>
+              {tokens.map((token, index) =>
                 token.type === 'ws' ? token.value : (
                   <span key={index} className={`dg-tok dg-tok-${token.type === 'plain' ? 'ident' : token.type}`}>
                     {token.value}

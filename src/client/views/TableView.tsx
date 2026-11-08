@@ -134,17 +134,45 @@ function DataGrid({
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [selection, setSelection] = useState<{ top: number; left: number; bottom: number; right: number } | null>(null)
-  const [editing, setEditing] = useState<{ row: number; column: number; value: string } | null>(null)
+  /**
+   * An in-place edit captures the row identity and the original value when it
+   * starts. Addressing it by array index later is wrong as soon as a refetch
+   * reorders the page: the index can then point at a different primary key.
+   */
+  const [editing, setEditing] = useState<{
+    rowIndex: number
+    columnName: string
+    key: Record<string, unknown>
+    original: unknown
+    value: string
+  } | null>(null)
+  const editingRef = useRef<typeof editing>(null)
   const [tick, setTick] = useState(0)
   const [exportMenu, setExportMenu] = useState<{ x: number; y: number } | null>(null)
   const [importing, setImporting] = useState(false)
   const [hiddenColumns, setHiddenColumns] = useState<string[]>([])
-  const [rowEditor, setRowEditor] = useState<{ rowIndex: number; draft: Record<string, string> } | null>(null)
+  const [rowEditor, setRowEditor] = useState<{
+    key: Record<string, unknown>
+    original: Record<string, unknown>
+    draft: Record<string, string>
+    fields: string[]
+  } | null>(null)
+  const rowEditorRef = useRef<typeof rowEditor>(null)
   const [savingRow, setSavingRow] = useState(false)
   const [columnMenu, setColumnMenu] = useState<{ x: number; y: number } | null>(null)
   const fileRef = useRef<HTMLInputElement>(null)
   const dragging = useRef(false)
   const gridRef = useRef<HTMLTableElement>(null)
+
+  /** Keep the ref in step with the state so a blur after Enter cannot commit twice. */
+  const beginEdit = (next: typeof editing): void => {
+    editingRef.current = next
+    setEditing(next)
+  }
+  const beginRowEditor = (next: typeof rowEditor): void => {
+    rowEditorRef.current = next
+    setRowEditor(next)
+  }
 
   const scopeKey = `${scope.connectionId}|${scope.database}|${scope.schema}|${scope.table}`
 
@@ -183,6 +211,14 @@ function DataGrid({
         if (cancelled) return
         countedKey.current = scopeQuery
         exactWanted.current = false
+        // A new page of rows invalidates any edit that was addressing the old
+        // page by index. Clearing here, not only when a request starts, covers
+        // the response that arrives while the user is typing.
+        editingRef.current = null
+        setEditing(null)
+        rowEditorRef.current = null
+        setRowEditor(null)
+        setSelection(null)
         // A page fetched without a total carries `total: null`; keep the number
         // the pager already showed instead of resetting it to zero.
         setData((previous) => ({
@@ -208,6 +244,15 @@ function DataGrid({
 
   const columns: ColumnInfo[] = meta?.columns ?? []
   const primaryKey = useMemo(() => columns.filter((column) => column.primaryKey).map((column) => column.name), [columns])
+  /** Capture the row identity now; never look it up by page index at submit time. */
+  const keyOf = useCallback(
+    (row: Record<string, unknown>): Record<string, unknown> => {
+      const key: Record<string, unknown> = {}
+      for (const name of primaryKey) key[name] = row[name]
+      return key
+    },
+    [primaryKey],
+  )
   const rows = data?.rows ?? []
   const total = data?.total ?? 0
   const pages = Math.max(1, Math.ceil(total / pageSize))
@@ -294,21 +339,20 @@ function DataGrid({
     }
   }
 
-  const commitEdit = async (rowIndex: number, columnIndex: number, original: unknown): Promise<void> => {
-    const cell = editing
+  const commitEdit = async (): Promise<void> => {
+    const cell = editingRef.current
+    editingRef.current = null
     setEditing(null)
     if (!cell) return
-    const before = original === null || original === undefined ? '' : String(original)
+    const before = cell.original === null || cell.original === undefined ? '' : String(cell.original)
     if (cell.value === before) return
     if (readOnly) return notify(t('noPrimaryKey'), 'error')
-    const row = rows[rowIndex]
-    if (!row) return
-    const key: Record<string, unknown> = {}
-    for (const name of primaryKey) key[name] = row[name]
-    const column = gridColumns[columnIndex]
-    if (!column) return
     try {
-      await api.updateRow({ ...scope, key, changes: { [column.name]: cell.value === '' && original === null ? null : cell.value } })
+      await api.updateRow({
+        ...scope,
+        key: cell.key,
+        changes: { [cell.columnName]: cell.value === '' && cell.original === null ? null : cell.value },
+      })
       notify(t('cellSaved'), 'success')
       reload()
     } catch (cause) {
@@ -360,6 +404,10 @@ function DataGrid({
   const importFile = async (file: File): Promise<void> => {
     const text = await file.text()
     const parsed = parseCsv(text)
+    if (parsed.errors.length > 0) {
+      notify(fmt(t('importFailed'), { n: 0, error: parsed.errors.slice(0, 3).join('; ') }), 'error')
+      return
+    }
     if (parsed.header.length === 0 || parsed.rows.length === 0) {
       notify(t('importEmpty'), 'error')
       return
@@ -435,12 +483,16 @@ function DataGrid({
   const openRowEditor = (rowIndex: number): void => {
     const row = rows[rowIndex]
     if (!row || readOnly) return
+    if (loading) return notify(t('loading'), 'info')
+    const source = (data?.columns ?? []).map((column) => column.name)
     const draft: Record<string, string> = {}
-    for (const column of data?.columns ?? []) {
-      const value = row[column.name]
-      draft[column.name] = value === null || value === undefined ? '' : String(value)
+    const original: Record<string, unknown> = {}
+    for (const name of source) {
+      const value = row[name]
+      original[name] = value
+      draft[name] = value === null || value === undefined ? '' : String(value)
     }
-    setRowEditor({ rowIndex, draft })
+    beginRowEditor({ key: keyOf(row), original, draft, fields: source })
   }
 
   /**
@@ -448,32 +500,31 @@ function DataGrid({
    * @returns {Promise<void>}
    */
   const saveRowEditor = async (): Promise<void> => {
-    const open = rowEditor
-    const row = open ? rows[open.rowIndex] : undefined
-    if (!open || !row) return
+    const open = rowEditorRef.current
+    if (!open) return
     const changes: Record<string, unknown> = {}
-    for (const column of data?.columns ?? []) {
-      const before = row[column.name]
+    for (const name of open.fields) {
+      const before = open.original[name]
       const beforeText = before === null || before === undefined ? '' : String(before)
-      const afterText = open.draft[column.name] ?? ''
+      const afterText = open.draft[name] ?? ''
       if (afterText === beforeText) continue
       // An emptied field becomes NULL on a nullable column, and an empty string
       // everywhere else — the grid cannot know which the user meant, and this is
       // the reading that cannot corrupt a number column.
-      const info = columns.find((entry) => entry.name === column.name)
-      changes[column.name] = afterText === '' && (info?.nullable ?? true) ? null : afterText
+      const info = columns.find((entry) => entry.name === name)
+      changes[name] = afterText === '' && (info?.nullable ?? true) ? null : afterText
     }
     if (Object.keys(changes).length === 0) {
-      setRowEditor(null)
+      beginRowEditor(null)
       return
     }
-    const key: Record<string, unknown> = {}
-    for (const name of primaryKey) key[name] = row[name]
     setSavingRow(true)
     try {
-      await api.updateRow({ ...scope, key, changes })
+      // The key was captured when the editor opened; a refetch may have moved
+      // this row since, and the captured key still names the row the user saw.
+      await api.updateRow({ ...scope, key: open.key, changes })
       notify(t('rowSaved'), 'success')
-      setRowEditor(null)
+      beginRowEditor(null)
       reload()
     } catch (cause) {
       notify(cause instanceof Error ? cause.message : String(cause), 'error')
@@ -692,7 +743,12 @@ function DataGrid({
             size="sm"
             variant="primary"
             onClick={() => {
-              setWhere(buildWhere(engine, { joiner, conditions }))
+              const next = buildWhere(engine, { joiner, conditions })
+              // The raw-WHERE input is the source of the debounce; leaving its
+              // draft on the old text made the timer re-apply that old filter
+              // a third of a second after Apply.
+              setWhereDraft(next)
+              setWhere(next)
               setPage(1)
             }}
           >
@@ -726,20 +782,23 @@ function DataGrid({
                     const cell = displayValue(row[column.name], t('null'))
                     const selected =
                       selection && rowIndex >= selection.top && rowIndex <= selection.bottom && columnIndex >= selection.left && columnIndex <= selection.right
-                    if (editing && editing.row === rowIndex && editing.column === columnIndex) {
+                    if (editing && editing.rowIndex === rowIndex && editing.columnName === column.name) {
                       return (
                         <td key={column.name} className="dg-cell-editing">
                           <input
                             autoFocus
                             value={editing.value}
-                            onChange={(event) => setEditing({ ...editing, value: event.target.value })}
-                            onBlur={() => void commitEdit(rowIndex, columnIndex, row[column.name])}
+                            onChange={(event) => beginEdit({ ...editing, value: event.target.value })}
+                            onBlur={() => void commitEdit()}
                             onKeyDown={(event) => {
                               if (event.key === 'Enter') {
                                 event.preventDefault()
-                                void commitEdit(rowIndex, columnIndex, row[column.name])
+                                void commitEdit()
                               }
-                              if (event.key === 'Escape') setEditing(null)
+                              if (event.key === 'Escape') {
+                                editingRef.current = null
+                                setEditing(null)
+                              }
                             }}
                           />
                         </td>
@@ -767,7 +826,14 @@ function DataGrid({
                         }}
                         onDoubleClick={() => {
                           if (readOnly) return notify(t('noPrimaryKey'), 'error')
-                          setEditing({ row: rowIndex, column: columnIndex, value: cell.isNull ? '' : String(row[column.name]) })
+                          if (loading) return notify(t('loading'), 'info')
+                          beginEdit({
+                            rowIndex,
+                            columnName: column.name,
+                            key: keyOf(row),
+                            original: row[column.name],
+                            value: cell.isNull ? '' : String(row[column.name]),
+                          })
                         }}
                       >
                         {cell.text}
@@ -852,13 +918,13 @@ function DataGrid({
       ) : null}
       {rowEditor ? (
         <Modal
-          title={`${t('editRow')} · ${(page - 1) * pageSize + rowEditor.rowIndex + 1}`}
+          title={`${t('editRow')} · ${Object.values(rowEditor.key).map((value) => String(value)).join(', ')}`}
           width={560}
           busy={savingRow}
-          onClose={() => setRowEditor(null)}
+          onClose={() => beginRowEditor(null)}
           footer={
             <>
-              <Button onClick={() => setRowEditor(null)}>{t('cancel')}</Button>
+              <Button onClick={() => beginRowEditor(null)}>{t('cancel')}</Button>
               <Button variant="primary" disabled={savingRow} onClick={() => void saveRowEditor()}>
                 {t('save')}
               </Button>
@@ -868,10 +934,13 @@ function DataGrid({
           <div className="dg-form">
             {editorFields.map((column) => {
               const value = rowEditor.draft[column.name] ?? ''
-              const change = (next: string): void =>
-                setRowEditor((current) =>
-                  current ? { ...current, draft: { ...current.draft, [column.name]: next } } : current,
-                )
+              const change = (next: string): void => {
+                const current = rowEditorRef.current
+                if (!current) return
+                // Update state and ref together: Save reads the ref so it sees
+                // the latest keystroke even before React has re-rendered.
+                beginRowEditor({ ...current, draft: { ...current.draft, [column.name]: next } })
+              }
               return (
                 <Field key={column.name} label={`${column.name}${column.primaryKey ? ' · PK' : ''}`}>
                   {isLongText(column.type) ? (

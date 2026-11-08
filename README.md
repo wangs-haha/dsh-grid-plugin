@@ -151,9 +151,11 @@ synthesised `CREATE TABLE`.
 - **completion** for keywords, functions, the tables in the current database and the columns of the
   open tab; `Ctrl+Space` opens it, arrows navigate, `Enter`/`Tab` accepts;
 - `Ctrl/Cmd+Enter` runs the selection or the whole script; `Tab` indents; **Beautify** reformats
-  clause by clause; **Explain** prefixes the first statement;
+  clause by clause without touching the contents of strings or quoted identifiers; **Explain**
+  prefixes the first statement;
 - while a script runs, **Cancel** asks the engine to stop it (PostgreSQL `pg_cancel_backend`, MySQL
-  `KILL QUERY`, SQL Server request cancel). SQLite has no interrupt API, and says so instead;
+  `KILL QUERY`, SQL Server request cancel). SQLite has no interrupt API, and says so instead. A
+  cancel travels on its own control path, so it is not queued behind the statement it stops;
 - one result tab per statement, per-statement timing, a 25-entry **history** menu, and a banner when
   the result was capped at 2 000 rows.
 
@@ -205,7 +207,15 @@ already multiplexes its own pool. Sessions expire after `idleMinutes` (default 1
   `hasPassword`.
 - The browser talks to `POST /api/grid` through `ctx.connection.fetch`, authenticated by the
   same-origin browser peer.
-- Row updates and deletes always require a primary key, so a misclick cannot rewrite a table.
+- Row updates and deletes always require a primary key, so a misclick cannot rewrite a table. The
+  Host also checks the posted key against the table's real primary key, so a crafted or stale
+  request cannot turn one row write into a full-table update.
+- A read-only run is guarded twice. The classifier rejects PRAGMA write forms as well as `=`
+  assignments, and SQLite re-asserts `PRAGMA query_only` before every statement, so a script cannot
+  disable the guard for the statements that follow it.
+- Redis scoped operations re-select the requested logical database instead of trusting the
+  session's cached index, because a raw `SELECT` in the console moves the shared connection.
+  Raw commands and key deletion are never retried after a dropped connection.
 - TLS verifies the server certificate by default; `require` is the explicit opt-out, and it is
   labelled as unverified in the connection form.
 - Connection handshakes are bounded (5s at the driver, 20s in the session pool), so an unreachable
@@ -239,7 +249,7 @@ scripts/build.mjs       esbuild bundle + module-loader wrapper
 ```powershell
 pnpm install
 pnpm build                                 # src/client -> dist/client.js
-pnpm test                                  # builds first, then runs 108 tests
+pnpm test                                  # builds first, then runs 115 tests
 pnpm typecheck                             # tsc over src/client and over the test sources
 node scripts/export-locale.mjs             # i18n.ts -> locale/*.json
 node dev/cdp-shot.mjs --view table         # render the panel in headless Edge
@@ -258,12 +268,13 @@ which is the only config that pulls in `@types/node`.
 | `test/options.test.mjs` | the `queryTimeoutMs` policy and its bounds |
 | `test/format.test.mjs` | the `INSERT` and Markdown exporters and the CSV parser (quotes, embedded commas and newlines, BOM, short rows), run against the TypeScript source |
 | `test/drivers.test.mjs` | the same table contract against **real** SQLite, MySQL, PostgreSQL and Redis |
-| `test/api.test.mjs` | router + session pool + agent tools against a real SQLite file: paging with and without a count (`auto` estimate vs `exact`), full-table export, the binding fallback, the write gate, the engine-level read-only refusal, cancellation, and an all-or-nothing batch insert |
+| `test/api.test.mjs` | router + session pool + agent tools against a real SQLite file: paging with and without a count (`auto` estimate vs `exact`), full-table export, the binding fallback, the write gate, the engine-level read-only refusal including a script that tries to disable it, cancellation while a statement is still running, a key that is not the primary key, Redis write retry policy, and an all-or-nothing batch insert |
 | `test/streaming.test.mjs` | the MySQL and SQL Server row caps against fake event emitters: the read stops at 2 000, truncation is reported, OkPackets and `rowsaffected` are distinguished from rows, errors become per-statement errors, and the MySQL fallback path |
 | `test/postgres-ddl.test.mjs` | the PostgreSQL DDL composer: real types, identity vs generated columns, constraints as separate statements (deferrable clauses kept), non-constraint indexes, comments, quoted identifiers |
 | `test/sqlserver-ddl.test.mjs` | the SQL Server composer: `nvarchar(100)` from `max_length` 200, `(max)` and precision/scale, identity seed/increment, computed columns, named defaults, FK actions |
 | `test/describe-wiring.test.mjs` | the seam between the drivers' catalogue queries and the composers, against a fake `pg` client and a fake `mssql` pool — this is what catches a projection that drops `notNull` or `identity` |
-| `test/session.test.mjs` | lane routing (which engines get a second connection), per-lane close and reap, and no replay after a cancel |
+| `test/session.test.mjs` | lane routing (which engines get a second connection), per-lane close and reap, no replay after a cancel, a handshake that finishes after close, and serial execution across a reconnect |
+| `test/redis-session.test.mjs` | scoped Redis operations after a raw `SELECT`, and that Beautify preserves string contents |
 | `test/sqlite-worker.test.mjs` | that SQLite queries really leave the main thread (a timer keeps ticking during a slow one, and does not on the in-process control), error status codes across the boundary, worker teardown, the fallback path |
 | `test/ui.test.ts` | the real `client.js` in jsdom: booting the panel, the tree and object list, opening a table, selecting a cell (the count chip appears), in-cell editing writing back by primary key, Insert row, the row editor sending only the changed fields, the Columns menu hiding and restoring a column without a refetch, the filter builder composing a predicate, the filter debounce (three keystrokes send nothing, the pause sends one), the Export menu writing a real `INSERT` script, CSV import (a matching header posts one batch, a mismatched one posts nothing), the `≈` estimate marker, the Cancel button reaching the Host, SQL keyword highlighting, Beautify and Ctrl+Space completion |
 | `test/locale.test.mjs` | the embedded dictionaries match `locale/*.json` |

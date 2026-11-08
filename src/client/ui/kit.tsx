@@ -73,9 +73,11 @@ export function Button(props: {
   disabled?: boolean
   active?: boolean
   title?: string
+  className?: string
   type?: 'button' | 'submit'
 }): JSX.Element {
   const classes = ['dg-btn']
+  if (props.className) classes.push(props.className)
   if (props.variant && props.variant !== 'default') classes.push(`dg-btn-${props.variant}`)
   if (props.size === 'sm') classes.push('dg-btn-sm')
   if (props.active) classes.push('dg-btn-active')
@@ -223,12 +225,20 @@ export function Modal(props: {
   busy?: boolean
 }): JSX.Element {
   const closeRef = useRef<HTMLButtonElement>(null)
+  // Callers pass inline closures, so both the Escape handler and the initial
+  // focus have to read the latest values through refs. Making the focus effect
+  // depend on `onClose` re-ran it on every keystroke and pulled focus back to
+  // the close button while the user was typing.
+  const onCloseRef = useRef(props.onClose)
+  onCloseRef.current = props.onClose
+  const busyRef = useRef(props.busy)
+  busyRef.current = props.busy
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent): void => {
-      if (event.key === 'Escape' && !props.busy) {
+      if (event.key === 'Escape' && !busyRef.current) {
         event.stopPropagation()
-        props.onClose()
+        onCloseRef.current()
       }
     }
     document.addEventListener('keydown', onKey)
@@ -237,7 +247,7 @@ export function Modal(props: {
       document.removeEventListener('keydown', onKey)
       clearTimeout(timer)
     }
-  }, [props.busy, props.onClose])
+  }, [])
 
   return createPortal(
     <div

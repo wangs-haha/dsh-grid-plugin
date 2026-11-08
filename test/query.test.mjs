@@ -90,6 +90,14 @@ test('a read-only claim holds against statements that really write', () => {
   // `PRAGMA name = value` mutates the database connection.
   assert.equal(isReadOnly('PRAGMA journal_mode = WAL'), false)
   assert.equal(isReadOnly('PRAGMA table_info(people)'), true)
+  assert.equal(isReadOnly('PRAGMA main.table_info(people)'), true)
+  assert.equal(isReadOnly('PRAGMA index_list(people)'), true)
+  assert.equal(isReadOnly('PRAGMA user_version'), true)
+  // The function-call form is the write form: this pair used to pass because
+  // neither contains `=`.
+  assert.equal(isReadOnly('PRAGMA user_version(123)'), false)
+  assert.equal(isReadOnly('PRAGMA query_only(0)'), false)
+  assert.equal(isReadOnly('PRAGMA journal_mode(WAL)'), false)
 })
 
 test('data inside a literal is not mistaken for a verb', () => {
