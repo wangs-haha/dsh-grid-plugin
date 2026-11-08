@@ -6,6 +6,29 @@ changes is in [REVIEW-vs-dbx.md](REVIEW-vs-dbx.md).
 
 ## Unreleased
 
+### SSH and connection security
+
+- **Single-hop SSH database connections.** MySQL/MariaDB, PostgreSQL, fixed-port SQL Server and
+  standalone Redis can use a pinned SSH host key with password or encrypted OpenSSH private-key
+  authentication. The Host uses optional `ssh2`; direct connections still work without it.
+- **Write-only SSH credentials.** Password, private key and passphrase are sealed separately.
+  Blank edits retain them, explicit clearing removes them, and disabling SSH or switching
+  authentication removes obsolete secrets. Draft probes use the same merge rules without saving.
+- **Managed transport lifetime.** Drivers share an SSH connection but own independent loopback
+  listeners; query-cancellation side connections and SQL Server pools use the tunnel too.
+  Total connect deadlines, abort/late-result cleanup and connection-generation fences prevent
+  stale handshakes, queued work or probes from reopening a disconnected connection.
+  SSH loss never falls back to direct TCP or replays an in-flight operation.
+- **Database TLS identity is separate from the SSH/dial address.** The optional TLS server name
+  controls database certificate verification and SNI. MySQL full verification now explicitly
+  enables its driver's hostname check; it requires a DNS identity (set one when dialing an IP).
+  SQL Server `verify-ca` is now rejected because the driver cannot implement chain-only checking
+  accurately; choose a supported mode rather than relying on a misleading label.
+- **PostgreSQL does not borrow ambient passwords.** Empty/omitted database passwords no longer
+  fall back to `PGPASSWORD` or `.pgpass`, and TLS off no longer inherits `PGSSLMODE`.
+- **Deployment:** rebuild the client bundle, reload/restart the Host plugin, then refresh the
+  existing DSH page. This change is not applied to an already imported Host module by browser HMR.
+
 ### Reliability
 
 - **A read-only SQLite run can no longer disable its own guard.** `PRAGMA

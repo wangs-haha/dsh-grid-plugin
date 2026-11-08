@@ -10,8 +10,8 @@ import { useState } from 'react'
 
 import { api } from '../lib/api'
 import { fmt } from '../lib/format'
-import type { Connection, ConnectionInput, ConnectionColor, EngineInfo } from '../lib/types'
-import { Banner, Button, Field, Icon, Input, Modal, Select, Spinner } from '../ui/kit'
+import type { Connection, ConnectionInput, ConnectionColor, EngineInfo, SshAuthType, SshConnectionInput } from '../lib/types'
+import { Banner, Button, Field, Icon, Input, Modal, Select, Spinner, TextArea } from '../ui/kit'
 
 /** Brand colour and glyph used for an engine's mark (drawn, not copied). */
 const ENGINE_MARK: Record<string, { color: string; glyph: 'cylinder' | 'layers' | 'file' }> = {
@@ -65,6 +65,58 @@ export function EngineLogo({ engine, size = 26 }: { engine: string; size?: numbe
   )
 }
 
+interface SecretDraft {
+  value: string
+  clear: boolean
+}
+
+type SecretName = 'password' | 'sshPassword' | 'privateKey' | 'passphrase'
+
+/** A blank field never deletes a saved secret; only the explicit action does. */
+function SecretField(props: {
+  t: (key: string) => string
+  label: string
+  draft: SecretDraft
+  hasSaved: boolean
+  multiline?: boolean
+  disabled: boolean
+  onChange: (value: string) => void
+  onClear: (clear: boolean) => void
+}): JSX.Element {
+  const { t, draft } = props
+  return (
+    <div className="dg-field">
+      <Field label={props.label} hint={draft.clear ? t('secretClearPending') : props.hasSaved ? t('secretKeep') : undefined}>
+        {props.multiline ? (
+          <TextArea
+            aria-label={props.label}
+            value={draft.value}
+            onChange={(event) => props.onChange(event.target.value)}
+            rows={5}
+            autoComplete="off"
+            spellCheck={false}
+            disabled={props.disabled}
+          />
+        ) : (
+          <Input
+            aria-label={props.label}
+            type="password"
+            value={draft.value}
+            onChange={(event) => props.onChange(event.target.value)}
+            autoComplete="new-password"
+            disabled={props.disabled}
+          />
+        )}
+      </Field>
+      <div>
+        <Button size="sm" variant="ghost" disabled={props.disabled} onClick={() => props.onClear(!draft.clear)}>
+          {draft.clear ? t('secretUndoClear') : t('secretClear')}
+        </Button>
+      </div>
+    </div>
+  )
+}
+
 interface ConnectionDialogProps {
   t: (key: string) => string
   engines: EngineInfo[]
@@ -83,12 +135,26 @@ export function ConnectionDialog(props: ConnectionDialogProps): JSX.Element {
     host: initial?.host || '127.0.0.1',
     port: initial?.port ? String(initial.port) : '',
     user: initial?.user ?? '',
-    password: '',
     database: initial?.database ?? '',
     file: initial?.file ?? '',
     redisDb: String(initial?.redisDb ?? 0),
     sslMode: initial?.sslMode ?? 'disable',
+    tlsServerName: initial?.tlsServerName ?? '',
     color: (initial?.color ?? 'none') as ConnectionColor,
+  }))
+  const [ssh, setSsh] = useState(() => ({
+    enabled: initial?.ssh?.enabled === true,
+    host: initial?.ssh?.host ?? '',
+    port: String(initial?.ssh?.port ?? 22),
+    username: initial?.ssh?.username ?? '',
+    authType: initial?.ssh?.authType ?? ('password' as SshAuthType),
+    hostFingerprint: initial?.ssh?.hostFingerprint ?? '',
+  }))
+  const [secrets, setSecrets] = useState<Record<SecretName, SecretDraft>>(() => ({
+    password: { value: '', clear: false },
+    sshPassword: { value: '', clear: false },
+    privateKey: { value: '', clear: false },
+    passphrase: { value: '', clear: false },
   }))
   const [probe, setProbe] = useState<{ ok: boolean; text: string } | null>(null)
   const [testing, setTesting] = useState(false)
@@ -96,9 +162,50 @@ export function ConnectionDialog(props: ConnectionDialogProps): JSX.Element {
   const [error, setError] = useState('')
 
   const info = engines.find((entry) => entry.id === engine)
+  const network = engine !== 'sqlite' && info?.kind !== 'file'
   const busy = testing || saving
   const set = (key: keyof typeof form) => (event: React.ChangeEvent<HTMLInputElement>) =>
     setForm((current) => ({ ...current, [key]: event.target.value }))
+  const setSshField = (key: 'host' | 'port' | 'username' | 'hostFingerprint') => (event: React.ChangeEvent<HTMLInputElement>) =>
+    setSsh((current) => ({ ...current, [key]: event.target.value }))
+  const changeSecret = (key: SecretName, value: string): void =>
+    setSecrets((current) => ({ ...current, [key]: { value, clear: false } }))
+  const clearSecret = (key: SecretName, clear: boolean): void =>
+    setSecrets((current) => ({ ...current, [key]: { value: '', clear } }))
+  const secretProps = (key: SecretName, hasSaved: boolean) => ({
+    t,
+    draft: secrets[key],
+    hasSaved,
+    disabled: busy,
+    onChange: (value: string) => changeSecret(key, value),
+    onClear: (clear: boolean) => clearSecret(key, clear),
+  })
+  const changeAuthType = (authType: SshAuthType): void => {
+    setSsh((current) => ({ ...current, authType }))
+    // Never hide a typed credential and send it under another authentication
+    // method. Explicit clears also remove the obsolete saved credentials.
+    setSecrets((current) => authType === 'password'
+      ? { ...current, privateKey: { value: '', clear: true }, passphrase: { value: '', clear: true } }
+      : { ...current, sshPassword: { value: '', clear: true } })
+  }
+
+  const validate = (): boolean => {
+    let message = ''
+    if (network && engine === 'sqlserver' && form.sslMode === 'verify-ca') {
+      message = t('sqlserverVerifyCaUnsupported')
+    } else if (network && ssh.enabled) {
+      if (!ssh.host.trim() || !ssh.username.trim() || !['password', 'privateKey'].includes(ssh.authType)) {
+        message = t('sshFieldsRequired')
+      } else if (!/^\d+$/.test(ssh.port) || Number(ssh.port) < 1 || Number(ssh.port) > 65535) {
+        message = t('sshPortInvalid')
+      } else if (!/^SHA256:[A-Za-z0-9+/]{43}=?$/.test(ssh.hostFingerprint.trim())) {
+        message = t('sshFingerprintInvalid')
+      }
+    }
+    setError(message)
+    if (message) setProbe(null)
+    return !message
+  }
 
   const payload = (): ConnectionInput => {
     const body: ConnectionInput = {
@@ -114,11 +221,41 @@ export function ConnectionDialog(props: ConnectionDialogProps): JSX.Element {
       sslMode: form.sslMode as ConnectionInput['sslMode'],
       color: form.color,
     }
-    if (form.password !== '' || !initial?.hasPassword) body.password = form.password
+    if (network) {
+      body.tlsServerName = form.tlsServerName.trim()
+      if (secrets.password.value !== '' || secrets.password.clear) body.password = secrets.password.value
+      if (ssh.enabled) {
+        const tunnel: SshConnectionInput = {
+          enabled: true,
+          host: ssh.host.trim(),
+          port: Number(ssh.port),
+          username: ssh.username.trim(),
+          authType: ssh.authType,
+          hostFingerprint: ssh.hostFingerprint.trim(),
+        }
+        if (ssh.authType === 'password') {
+          if (secrets.sshPassword.value !== '' || secrets.sshPassword.clear) tunnel.password = secrets.sshPassword.value
+          if (secrets.privateKey.clear) tunnel.privateKey = ''
+          if (secrets.passphrase.clear) tunnel.passphrase = ''
+        } else {
+          if (secrets.privateKey.value !== '' || secrets.privateKey.clear) tunnel.privateKey = secrets.privateKey.value
+          if (secrets.passphrase.value !== '' || secrets.passphrase.clear) tunnel.passphrase = secrets.passphrase.value
+          if (secrets.sshPassword.clear) tunnel.password = ''
+        }
+        body.ssh = tunnel
+      } else {
+        body.ssh = { enabled: false }
+      }
+    } else {
+      // An edited network connection can still have stored SSH settings. Clear
+      // them explicitly so draft/save merging cannot re-enable SSH for SQLite.
+      body.ssh = { enabled: false }
+    }
     return body
   }
 
   const test = async (): Promise<void> => {
+    if (!validate()) return
     setTesting(true)
     setProbe(null)
     setError('')
@@ -133,6 +270,7 @@ export function ConnectionDialog(props: ConnectionDialogProps): JSX.Element {
   }
 
   const save = async (): Promise<void> => {
+    if (!validate()) return
     setSaving(true)
     setError('')
     try {
@@ -179,6 +317,7 @@ export function ConnectionDialog(props: ConnectionDialogProps): JSX.Element {
             type="button"
             className={`dg-engine${entry.id === engine ? ' dg-engine-active' : ''}`}
             onClick={() => {
+              if (entry.id === engine) return
               setEngine(entry.id)
               setForm((current) => ({ ...current, port: String(entry.defaultPort || ''), sslMode: 'disable' }))
               setProbe(null)
@@ -204,7 +343,8 @@ export function ConnectionDialog(props: ConnectionDialogProps): JSX.Element {
         {endpoint ? <span className="dg-tag">{endpoint}</span> : null}
         {form.database ? <span className="dg-tag">{form.database}</span> : null}
         {form.group ? <span className="dg-tag">{form.group}</span> : null}
-        {form.sslMode !== 'disable' ? <span className="dg-tag">TLS</span> : null}
+        {network && form.sslMode !== 'disable' ? <span className="dg-tag">TLS</span> : null}
+        {network && ssh.enabled ? <span className="dg-tag">SSH</span> : null}
       </div>
 
       <section className="dg-form-section">
@@ -248,7 +388,7 @@ export function ConnectionDialog(props: ConnectionDialogProps): JSX.Element {
           </div>
         ) : (
           <div className="dg-form">
-            <Field label={t('host')}>
+            <Field label={t('host')} hint={ssh.enabled ? t('sshDatabaseHostHint') : undefined}>
               <Input value={form.host} onChange={set('host')} />
             </Field>
             <Field label={t('port')}>
@@ -257,9 +397,7 @@ export function ConnectionDialog(props: ConnectionDialogProps): JSX.Element {
             <Field label={t('user')}>
               <Input value={form.user} onChange={set('user')} />
             </Field>
-            <Field label={t('password')} hint={initial?.hasPassword ? t('passwordKeep') : undefined}>
-              <Input type="password" value={form.password} onChange={set('password')} autoComplete="new-password" />
-            </Field>
+            <SecretField label={t('password')} {...secretProps('password', initial?.hasPassword ?? false)} />
             {engine === 'redis' ? (
               <Field label={t('redisDb')}>
                 <Input value={form.redisDb} onChange={set('redisDb')} inputMode="numeric" />
@@ -269,7 +407,7 @@ export function ConnectionDialog(props: ConnectionDialogProps): JSX.Element {
                 <Input value={form.database} onChange={set('database')} placeholder="optional" />
               </Field>
             )}
-            <Field label="TLS / SSL">
+            <Field label="TLS / SSL" hint={engine === 'sqlserver' ? t('sqlserverVerifyCaUnsupported') : undefined}>
               <Select
                 value={form.sslMode}
                 onChange={(event) =>
@@ -281,13 +419,90 @@ export function ConnectionDialog(props: ConnectionDialogProps): JSX.Element {
               >
                 <option value="disable">{t('sslDisable')}</option>
                 <option value="require">{t('sslRequire')}</option>
-                <option value="verify-ca">{t('sslVerifyCa')}</option>
+                <option value="verify-ca" disabled={engine === 'sqlserver'}>{t('sslVerifyCa')}</option>
                 <option value="verify-full">{t('sslVerifyFull')}</option>
               </Select>
             </Field>
+            {form.sslMode !== 'disable' ? (
+              <Field label={t('tlsServerName')} hint={t('tlsServerNameHint')}>
+                <Input value={form.tlsServerName} onChange={set('tlsServerName')} placeholder={form.host.trim()} />
+              </Field>
+            ) : null}
           </div>
         )}
       </section>
+
+      {network ? (
+        <section className="dg-form-section">
+          <div className="dg-section-title">{t('sshSection')}</div>
+          <label className="dg-field-label" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <input
+              type="checkbox"
+              checked={ssh.enabled}
+              disabled={busy}
+              onChange={(event) => {
+                setSsh((current) => ({ ...current, enabled: event.target.checked }))
+                setProbe(null)
+              }}
+            />
+            {t('sshEnable')}
+          </label>
+          {ssh.enabled ? (
+            <>
+              <div className="dg-field-hint">{t('sshSingleHopHint')}</div>
+              <div className="dg-form">
+                <Field label={t('sshHost')}>
+                  <Input value={ssh.host} onChange={setSshField('host')} required disabled={busy} autoComplete="off" />
+                </Field>
+                <Field label={t('sshPort')}>
+                  <Input value={ssh.port} onChange={setSshField('port')} required inputMode="numeric" disabled={busy} />
+                </Field>
+                <Field label={t('sshUsername')}>
+                  <Input value={ssh.username} onChange={setSshField('username')} required disabled={busy} autoComplete="off" />
+                </Field>
+                <Field label={t('sshAuthType')}>
+                  <Select
+                    value={ssh.authType}
+                    disabled={busy}
+                    required
+                    onChange={(event) => changeAuthType(event.target.value as SshAuthType)}
+                  >
+                    <option value="password">{t('sshAuthPassword')}</option>
+                    <option value="privateKey">{t('sshAuthPrivateKey')}</option>
+                  </Select>
+                </Field>
+                <Field label={t('sshHostFingerprint')} wide hint={t('sshFingerprintHint')}>
+                  <Input
+                    value={ssh.hostFingerprint}
+                    onChange={setSshField('hostFingerprint')}
+                    placeholder="SHA256:…"
+                    required
+                    disabled={busy}
+                    autoComplete="off"
+                    spellCheck={false}
+                  />
+                </Field>
+                {ssh.authType === 'password' ? (
+                  <SecretField label={t('sshPassword')} {...secretProps('sshPassword', initial?.ssh?.hasPassword ?? false)} />
+                ) : (
+                  <>
+                    <div className="dg-field-wide">
+                      <SecretField
+                        label={t('sshPrivateKey')}
+                        multiline
+                        {...secretProps('privateKey', initial?.ssh?.hasPrivateKey ?? false)}
+                      />
+                      <div className="dg-field-hint">{t('sshPrivateKeyHint')}</div>
+                    </div>
+                    <SecretField label={t('sshPassphrase')} {...secretProps('passphrase', initial?.ssh?.hasPassphrase ?? false)} />
+                  </>
+                )}
+              </div>
+              <Banner>{t('sshSecurityHint')}</Banner>
+            </>
+          ) : initial?.ssh ? <div className="dg-field-hint">{t('sshDisableHint')}</div> : null}
+        </section>
+      ) : null}
 
       {error ? (
         <Banner tone="error" onClose={() => setError('')}>

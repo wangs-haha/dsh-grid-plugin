@@ -26,6 +26,7 @@
     "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.test.json --noEmit",
     "pretest": "node scripts/build.mjs",
     "test": "node --test",
+    "test:ssh": "node scripts/build.mjs && node --test test/ssh-config.test.mjs test/ssh-transport.test.mjs test/ssh-driver-wiring.test.mjs test/ssh-integration.test.mjs test/ssh-review.test.mjs test/connection-dialog-ui.test.ts",
     "audit:ui": "node dev/audit.mjs",
     "shot": "node dev/cdp-shot.mjs",
     "locale": "node scripts/export-locale.mjs"
@@ -46,7 +47,8 @@
     "ioredis": "^5.11.1",
     "mssql": "^11.0.2",
     "mysql2": "^3.24.6",
-    "pg": "^8.23.1"
+    "pg": "^8.23.1",
+    "ssh2": "^1.17.0"
   },
   "peerDependencies": {
     "@deepseek-ai/cordis": "^4.0.1"

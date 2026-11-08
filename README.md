@@ -101,10 +101,75 @@ Three columns, the way a desktop client is laid out:
 **Connections** — create, edit, delete, test, connect, disconnect; group label, environment colour,
 TLS mode. Groups collapse; right-click a connection for the full menu.
 
-**TLS modes** — `disable` (default), `require` (encrypted, certificate *not* verified — use it only
-for a host with a self-signed certificate), `verify-ca` (chain verified) and `verify-full` (chain and
-host name). A connection created with the old `ssl: true` flag is treated as `verify-full`; supply
-`options.sslCa` with a PEM string to trust a private CA.
+**TLS modes** — `disable` (default), `require` (encrypted, certificate *not* verified),
+`verify-ca` (chain verified) and `verify-full` (chain and host name). A connection created with
+`ssl: true` is treated as `verify-full`; supply `options.sslCa` with a PEM string to trust a
+private CA. **TLS server name** optionally specifies the database certificate identity while
+leaving the physical database address unchanged. SQL Server does not support chain-only
+`verify-ca`: choose `verify-full` or another supported mode. MySQL `verify-full` requires a
+DNS certificate identity; when dialing an IP, supply that DNS name explicitly.
+
+## SSH tunnels
+
+Network connections support a **single SSH jump host** with password or OpenSSH private-key
+authentication (including an encrypted private key's passphrase). SQLite remains a local file
+connection. No shell commands, agent forwarding or system `ssh` process are used.
+
+1. Enter the **database host and port as reachable from the jump host**. An internal DNS name is
+   resolved there; `127.0.0.1` means the jump host itself, not the browser or the DSH machine.
+2. Enable **Connect through SSH**, then enter the jump host, port (default 22), user and authentication method.
+3. Supply the **pinned SHA256 SSH host fingerprint** obtained from the administrator through a trusted channel.
+   On the SSH server, an administrator can inspect a host public key with:
+
+   ```sh
+   ssh-keygen -lf /etc/ssh/ssh_host_ed25519_key.pub -E sha256
+   ```
+
+   Copy the `SHA256:...` value for a key type the server will negotiate. Grid never discovers or
+   accepts keys automatically. A mismatch stops the connection; verify a legitimate rotation
+   out of band before updating the pin. Only one pinned host key is supported per connection.
+4. Enter the SSH password, or paste the complete private key and optional passphrase. There is no
+   arbitrary Host file-path reader. Test the connection, then save it.
+5. Keep database TLS configured independently. SSH protects DSH → jump host; it does **not** protect
+   the jump host → database leg. The TLS server name is the **database** identity, not the SSH host.
+
+The jump host must permit local TCP forwarding and reach the database endpoint. An administrator
+can restrict a dedicated account using `AllowTcpForwarding local` and `PermitOpen host:port`.
+The DSH Host, not the browser, must be able to reach the jump host.
+
+`ssh2` is an optional, lazily imported dependency. If absent, only SSH connections fail; direct
+connections keep working. Install it from the plugin directory with `pnpm install --ignore-scripts`.
+The core JS path works without the package's optional native acceleration/build scripts.
+
+**Credential edits:** blank fields preserve saved credentials; the explicit **Clear credential**
+action removes one. Disabling SSH and saving erases its settings and secrets. Switching authentication
+methods erases the obsolete method's credentials. Passwords, private keys and passphrases are independently
+AES-256-GCM sealed; neither plaintext nor ciphertext is returned to the browser or Agent.
+Omission preserves a credential in API patches and draft tests; an explicit empty string clears it.
+
+**Lifecycle:** main/query drivers share one SSH connection per saved configuration, but each driver
+owns its own ephemeral `127.0.0.1` listener. Each TCP connection gets a separate SSH channel, including
+MySQL/PostgreSQL cancellation connections and SQL Server pool connections. Draft tests are isolated.
+Closing an idle lane does not kill another lane. Disconnect/edit/delete invalidates old queued and
+pending work; unload aborts probes and transport handshakes. A 20-second total connect deadline covers
+SSH and database setup, followed by bounded cleanup. Cancellation is bounded at 10 seconds.
+SSH-level keepalives run every 15 seconds, with three unanswered probes tolerated.
+
+A dropped SSH connection invalidates its sessions. **An in-flight operation is not replayed**, even
+if it returns a per-statement error; its outcome may be unknown. A later request reconnects on demand.
+Grid never silently falls back to a direct connection. The existing Agent write policy is unchanged.
+
+**Threat boundary:** loopback ports are not a local-user authentication boundary. Other processes
+on the same Host can reach the forwarding listener while it is open, so retain database authentication
+and use a trusted single-user Host or OS/container isolation. Sealing credentials does not protect
+against an attacker who controls the Host account and can also read its encryption key. Enforce
+appropriate Windows ACLs; POSIX `0600` alone is not an equivalent Windows access-control guarantee.
+
+First-version exclusions: multi-hop/ProxyJump/ProxyCommand, interactive MFA, SSH agent/hardware-key
+integration, Redis Cluster/Sentinel, and SQL Server instance discovery or redirected endpoints.
+Configure a fixed TCP endpoint; redirects are rejected instead of bypassing the tunnel.
+
+## The data views
 
 **Object list** — the relations of the selected database with **name, kind, estimated rows and
 comment**, sortable by any column and searchable. Double-click opens a tab; right-click offers
@@ -218,8 +283,8 @@ already multiplexes its own pool. Sessions expire after `idleMinutes` (default 1
   Raw commands and key deletion are never retried after a dropped connection.
 - TLS verifies the server certificate by default; `require` is the explicit opt-out, and it is
   labelled as unverified in the connection form.
-- Connection handshakes are bounded (5s at the driver, 20s in the session pool), so an unreachable
-  host reports an error instead of spinning.
+- Connection handshakes have a 20s total deadline for transport + driver setup, with bounded
+  graceful cleanup and forced socket teardown after a 1s grace period.
 - Statements are bounded too: `options.queryTimeoutMs` (default 30 000) becomes
   `statement_timeout` on PostgreSQL, `MAX_EXECUTION_TIME` / `max_statement_time` on MySQL and
   MariaDB, `requestTimeout` on SQL Server and `commandTimeout` on Redis. SQLite has no equivalent, so
@@ -249,7 +314,8 @@ scripts/build.mjs       esbuild bundle + module-loader wrapper
 ```powershell
 pnpm install
 pnpm build                                 # src/client -> dist/client.js
-pnpm test                                  # builds first, then runs 115 tests
+pnpm test                                  # builds first; includes opt-in-by-availability local DB fixtures
+pnpm test:ssh                              # isolated SSH/security/UI tests, no existing DB server used
 pnpm typecheck                             # tsc over src/client and over the test sources
 node scripts/export-locale.mjs             # i18n.ts -> locale/*.json
 node dev/cdp-shot.mjs --view table         # render the panel in headless Edge
@@ -261,8 +327,21 @@ pnpm audit:ui                              # measure contrast, surfaces, targets
 `pnpm typecheck` checks the panel sources and then the test sources through `tsconfig.test.json`,
 which is the only config that pulls in `@types/node`.
 
+The SSH suites use only their own loopback SSH server and minimal PostgreSQL/Redis protocol fixtures,
+plus mocked vendor clients for all four network adapters. The certificate/private key under
+`test/fixtures/` is a public, test-only self-signed fixture, not a real credential. No administrator
+fingerprint, production private key or existing database is needed. The full `pnpm test` command
+also runs the older driver integration suite, which may create/drop test objects on local database
+servers if those documented test credentials are available; use `pnpm test:ssh` for the isolated SSH checks.
+
 | Test file | Covers |
 | --- | --- |
+| `test/ssh-config.test.mjs` | strict SSH input, independent encryption, write-only projections, secret preservation/clearing, draft probes without persistence |
+| `test/ssh-transport.test.mjs` | leases, independent listeners, timeout/abort/late callbacks, failed generations, no replay, queued-work fencing |
+| `test/ssh-driver-wiring.test.mjs` | all four real adapters against mocked vendor packages: stream/connector routing, cancellation, TLS identities and teardown |
+| `test/ssh-integration.test.mjs` | real local ssh2 server/client password and encrypted-key authentication, pinned host keys, real pg TLS and Redis protocol round trips |
+| `test/ssh-review.test.mjs` | close/acquire races, probe invalidation, PostgreSQL ambient-credential isolation and SNI |
+| `test/connection-dialog-ui.test.ts` | actual dialog payloads, write-only credential edits, SSH validation, SQLite switching, bilingual guidance |
 | `test/query.test.mjs` | statement splitting, read-only classification (including the `EXPLAIN ANALYZE` / `INTO` / literal-masking cases), identifier quoting, pagination, value serialisation |
 | `test/connections.test.mjs` | registry CRUD, AES-256-GCM at rest, TLS mode defaults (including records written before `sslMode` existed), validation status codes, password preservation |
 | `test/options.test.mjs` | the `queryTimeoutMs` policy and its bounds |
@@ -299,7 +378,10 @@ stylesheet on purpose — an invented palette hides exactly the defects (`bg-lay
 index.js              Host plugin: route, tools, session lifecycle
 lib/connections.js    Registry, validation, TLS modes, AES-256-GCM
 lib/errors.js         GridError + HTTP status mapping
-lib/session.js        Session pool: per-connection lanes, idle expiry, one reconnect, bounded handshake
+lib/session.js        Session pool: lanes, idle expiry, queued-work fences and probes
+lib/open.js           Total-deadline opener and bounded teardown shared by sessions/probes
+lib/transport.js      Lazy ssh2 client, pinned host identity, leased loopback listeners
+lib/drivers/network.js Guarded socket factories keep logical identity separate from dialing
 lib/api.js            Action router shared by the panel and the tools
 lib/query.js          Dialect helpers, statement splitter, read-only classifier
 lib/tools.js          grid_* tool definitions
@@ -322,7 +404,7 @@ dist/client.js        Build output loaded by the page; run `pnpm build` after ed
 ## Known limits
 
 - Oracle and ODBC engines are not implemented.
-- No SSH / SOCKS5 / HTTP tunnel, so a database behind a jump host must be reached another way.
+- No SOCKS5 or HTTP proxy. SSH is single-hop TCP forwarding only (see above).
 - No table designer (create/alter table), no schema comparison, no backup/export container.
 - PostgreSQL and SQL Server sessions are bound to one database; switch it by editing the connection.
 - The grid pages instead of virtualising, so it stays simple at the cost of very large scans.

@@ -16,6 +16,34 @@ export interface EngineInfo {
   error?: string
 }
 
+export type SshAuthType = 'password' | 'privateKey'
+
+/** Public SSH settings: credentials are write-only and exposed only as flags. */
+export interface SshConnection {
+  enabled: true
+  host: string
+  port: number
+  username: string
+  authType: SshAuthType
+  hostFingerprint: string
+  hasPassword: boolean
+  hasPrivateKey: boolean
+  hasPassphrase: boolean
+}
+
+/** Omitted credentials are retained; explicit empty strings clear them. */
+export interface SshConnectionInput {
+  enabled: boolean
+  host?: string
+  port?: number
+  username?: string
+  authType?: SshAuthType
+  hostFingerprint?: string
+  password?: string
+  privateKey?: string
+  passphrase?: string
+}
+
 export interface Connection {
   id: string
   name: string
@@ -31,14 +59,18 @@ export interface Connection {
   ssl: boolean
   /** How the TLS connection is verified; see the Host's `SSL_MODES`. */
   sslMode: 'disable' | 'require' | 'verify-ca' | 'verify-full'
+  /** Empty means use the database host, not a tunnel's local forwarding address. */
+  tlsServerName?: string
+  ssh?: SshConnection | null
   hasPassword: boolean
   createdAt: string
   updatedAt: string
 }
 
-export type ConnectionInput = Partial<Omit<Connection, 'id' | 'hasPassword' | 'createdAt' | 'updatedAt'>> & {
+export type ConnectionInput = Partial<Omit<Connection, 'id' | 'ssh' | 'hasPassword' | 'createdAt' | 'updatedAt'>> & {
   id?: string
   password?: string
+  ssh?: SshConnectionInput | null
 }
 
 export interface DatabaseNode {

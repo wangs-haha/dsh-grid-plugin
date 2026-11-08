@@ -39,6 +39,8 @@ test('creates a SQLite connection and never exposes the password', async () => {
   })
   assert.equal(created.engine, 'sqlite')
   assert.equal(created.name, 'local')
+  assert.equal(created.ssh, null)
+  assert.equal(created.tlsServerName, '')
   assert.equal(created.hasPassword, true)
   assert.equal(Object.hasOwn(created, 'password'), false)
   assert.equal(Object.hasOwn(created, 'secret'), false)

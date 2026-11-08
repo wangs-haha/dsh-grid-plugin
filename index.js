@@ -162,7 +162,7 @@ export function apply(ctx, config = {}) {
   ctx.effect(
     () => () => {
       pool.dispose()
-      void pool.closeAll()
+      return pool.closeAll()
     },
     'grid: sessions',
   )
