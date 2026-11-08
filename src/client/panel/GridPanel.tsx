@@ -488,6 +488,7 @@ export function GridPanel({ t }: GridPanelProps): JSX.Element {
             t={tr}
             selectedDatabaseKey={activeDatabaseKey}
             onNewConnection={() => setDialog({ kind: 'connection' })}
+            onOpenWorkspaces={() => setDialog({ kind: 'workspaces' })}
             onSelectDatabase={openDatabase}
             onOpenTable={(connection, database, schema, relation) =>
               openTable(connection, database.name, schema, relation)

@@ -10,7 +10,7 @@ import { useState } from 'react'
 import { api } from '../lib/api'
 import type { ProjectBinding } from '../lib/types'
 import { useStore, type GridStore } from '../store'
-import { Banner, Button, Empty, Field, Icon, Input, Modal, Select } from '../ui/kit'
+import { Alert, Badge, Button, Card, Empty, Field, Icon, Input, Modal, Select, Tag } from '../ui/kit'
 
 interface WorkspaceDialogProps {
   t: (key: string) => string
@@ -92,9 +92,13 @@ export function WorkspaceDialog(props: WorkspaceDialogProps): JSX.Element {
       footer={<Button onClick={props.onClose}>{t('close')}</Button>}
     >
       {error ? (
-        <Banner tone="error" onClose={() => setError('')}>
-          {error}
-        </Banner>
+        <Alert
+          type="error"
+          message={error}
+          closable
+          onClose={() => setError('')}
+          style={{ marginBottom: 12 }}
+        />
       ) : null}
       {workspaces.length === 0 ? (
         <Empty title={t('noWorkspaces')} />
@@ -107,43 +111,55 @@ export function WorkspaceDialog(props: WorkspaceDialogProps): JSX.Element {
             const knownDbs = value.connectionId ? store.connections.session(value.connectionId).databases : []
 
             return (
-              <div key={workspace.id} className="dg-ws-row">
-                <div className="dg-ws-head">
-                  <span className="dg-ws-icon">
-                    <Icon name="folder" size={14} />
-                  </span>
-                  <div className="dg-truncate" style={{ flex: 1, minWidth: 0 }}>
-                    <div className="dg-ws-title">{workspace.title}</div>
-                    <div className="dg-ws-path" title={workspace.path}>
-                      {workspace.path}
+              <Card
+                key={workspace.id}
+                size="small"
+                hoverable
+                className="dg-ws-card"
+              >
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginBottom: 10 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0, flex: 1 }}>
+                    <span className="dg-ws-icon">
+                      <Icon name="folder" size={15} />
+                    </span>
+                    <div style={{ minWidth: 0, flex: 1 }}>
+                      <div style={{ fontWeight: 600, fontSize: 13, color: 'var(--dg-text)' }}>{workspace.title}</div>
+                      <div
+                        style={{
+                          fontSize: 12,
+                          color: 'var(--dg-text-2)',
+                          fontFamily: 'var(--dg-mono)',
+                          textOverflow: 'ellipsis',
+                          overflow: 'hidden',
+                          whiteSpace: 'nowrap',
+                          marginTop: 2,
+                        }}
+                        title={workspace.path}
+                      >
+                        {workspace.path}
+                      </div>
                     </div>
                   </div>
                   {binding ? (
-                    <span className="dg-status-badge dg-status-badge-ok">
-                      <span className="dg-dot dg-dot-open" />
-                      {t('boundProject')}
-                    </span>
+                    <Badge status="success" text={<span style={{ fontWeight: 500, color: 'var(--ant-success, #52c41a)' }}>{t('boundProject')}</span>} />
                   ) : (
-                    <span className="dg-status-badge">
-                      {t('projectUnbound')}
-                    </span>
+                    <Badge status="default" text={<span style={{ color: 'var(--dg-text-3)' }}>{t('projectUnbound')}</span>} />
                   )}
                 </div>
 
                 {binding ? (
-                  <div className="dg-tags" style={{ marginTop: 2, marginBottom: 4 }}>
-                    <span className="dg-tag dg-tag-strong">
-                      <Icon name="database" size={10} />
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', marginBottom: 12 }}>
+                    <Tag color="blue" icon="database">
                       {binding.connectionName || binding.connectionId}
-                    </span>
+                    </Tag>
                     {binding.database ? (
-                      <span className="dg-tag">
+                      <Tag color="cyan">
                         {binding.database}
-                      </span>
+                      </Tag>
                     ) : null}
-                    <span className="dg-tag dg-tag-accent">
+                    <Tag color="purple">
                       {t('readOnlyForAgent')}
-                    </span>
+                    </Tag>
                   </div>
                 ) : null}
 
@@ -196,19 +212,25 @@ export function WorkspaceDialog(props: WorkspaceDialogProps): JSX.Element {
                       size="sm"
                       variant="primary"
                       disabled={busy === workspace.id || !value.connectionId}
+                      loading={busy === workspace.id}
                       onClick={() => void bind(workspace.id, workspace.path)}
                     >
                       <Icon name="link" size={11} />
                       {t('bindProject')}
                     </Button>
                     {binding ? (
-                      <Button size="sm" variant="ghost" disabled={busy === workspace.id} onClick={() => void unbind(workspace.id)}>
+                      <Button
+                        size="sm"
+                        variant="danger"
+                        disabled={busy === workspace.id}
+                        onClick={() => void unbind(workspace.id)}
+                      >
                         {t('unbindProject')}
                       </Button>
                     ) : null}
                   </div>
                 </div>
-              </div>
+              </Card>
             )
           })}
         </div>

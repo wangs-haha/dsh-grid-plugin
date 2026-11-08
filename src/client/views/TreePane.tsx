@@ -22,6 +22,7 @@ interface TreePaneProps {
   t: (key: string) => string
   selectedDatabaseKey: string
   onNewConnection?: () => void
+  onOpenWorkspaces?: () => void
   onSelectDatabase: (connection: Connection, database: DatabaseNode) => void
   onOpenTable: (connection: Connection, database: DatabaseNode, schema: string, relation: RelationNode) => void
   onConnectionMenu: (event: React.MouseEvent, connection: Connection) => void
@@ -204,6 +205,14 @@ export function TreePane(props: TreePaneProps): JSX.Element {
             title={t('newConnection')}
             size={11}
             onClick={props.onNewConnection}
+          />
+        ) : null}
+        {props.onOpenWorkspaces ? (
+          <IconButton
+            icon="link"
+            title={t('workspaces')}
+            size={11}
+            onClick={props.onOpenWorkspaces}
           />
         ) : null}
         <IconButton

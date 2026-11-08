@@ -6,7 +6,7 @@ import { api } from '../lib/api'
 import { humanSize, relativeTime } from '../lib/format'
 import type { Account, DatabaseNode, RelationKind, RelationNode, Routine, SavedQuery } from '../lib/types'
 import { useStore, type GridStore } from '../store'
-import { Banner, Button, Empty, Icon, IconButton, Input, Spinner } from '../ui/kit'
+import { Banner, Button, Card, Empty, Icon, IconButton, Input, Spinner, Tag } from '../ui/kit'
 
 type Notify = (message: string, tone?: 'info' | 'error' | 'success') => void
 
@@ -181,48 +181,81 @@ export function OverviewView(props: {
       </div>
       <div style={{ overflow: 'auto' }}>
         <div className="dg-cards">
-          <div className="dg-card" onClick={() => props.onOpenRelations('table')} style={{ cursor: 'pointer' }}>
-            <div className="dg-card-value">{tables}</div>
-            <div className="dg-card-label">{t('tables')}</div>
-          </div>
-          <div className="dg-card" onClick={() => props.onOpenRelations('view')} style={{ cursor: 'pointer' }}>
-            <div className="dg-card-value">{views}</div>
-            <div className="dg-card-label">{t('views')}</div>
-          </div>
-          <div className="dg-card">
-            <div className="dg-card-value">{props.schemas.length || 1}</div>
-            <div className="dg-card-label">{t('schema')}</div>
-          </div>
-          <div className="dg-card">
-            <div className="dg-card-value">{props.database.file ? humanSize(props.database.file.length) : '—'}</div>
-            <div className="dg-card-label">{t('file')}</div>
-          </div>
-        </div>
-        <div className="dg-section">
-          <div className="dg-section-title">{t('agentHint')}</div>
-          {binding && binding.connectionId === props.connectionId ? (
-            <Banner tone="success">
-              {t('projectBound')
-                .replace('{name}', binding.connectionName ?? binding.connectionId)
-                .replace('{database}', binding.database)}
-            </Banner>
-          ) : (
-            <Banner>{t('projectUnbound')}</Banner>
-          )}
-          <Banner>{store.meta.allowWrites ? t('writesEnabled') : t('readOnlyForAgent')}</Banner>
-        </div>
-        <div className="dg-section">
-          <div className="dg-section-title">{t('schema')}</div>
-          {props.schemas.length > 0 ? (
-            props.schemas.map((schema) => (
-              <div key={schema} className="dg-row">
-                <Icon name="folder" size={11} />
-                <span className="dg-mono">{schema}</span>
+          <Card hoverable onClick={() => props.onOpenRelations('table')} style={{ cursor: 'pointer' }}>
+            <div className="dg-stat-card-inner">
+              <span className="dg-stat-icon dg-stat-icon-blue">
+                <Icon name="table" size={20} />
+              </span>
+              <div>
+                <div className="dg-card-value">{tables}</div>
+                <div className="dg-card-label">{t('tables')}</div>
               </div>
-            ))
-          ) : (
-            <div className="dg-muted">default</div>
-          )}
+            </div>
+          </Card>
+          <Card hoverable onClick={() => props.onOpenRelations('view')} style={{ cursor: 'pointer' }}>
+            <div className="dg-stat-card-inner">
+              <span className="dg-stat-icon dg-stat-icon-green">
+                <Icon name="view" size={20} />
+              </span>
+              <div>
+                <div className="dg-card-value">{views}</div>
+                <div className="dg-card-label">{t('views')}</div>
+              </div>
+            </div>
+          </Card>
+          <Card hoverable>
+            <div className="dg-stat-card-inner">
+              <span className="dg-stat-icon dg-stat-icon-gold">
+                <Icon name="folder" size={20} />
+              </span>
+              <div>
+                <div className="dg-card-value">{props.schemas.length || 1}</div>
+                <div className="dg-card-label">{t('schema')}</div>
+              </div>
+            </div>
+          </Card>
+          <Card hoverable>
+            <div className="dg-stat-card-inner">
+              <span className="dg-stat-icon dg-stat-icon-purple">
+                <Icon name="archive" size={20} />
+              </span>
+              <div>
+                <div className="dg-card-value">{props.database.file ? humanSize(props.database.file.length) : '—'}</div>
+                <div className="dg-card-label">{t('file')}</div>
+              </div>
+            </div>
+          </Card>
+        </div>
+        <div className="dg-section">
+          <Card size="small" title={t('agentHint')}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {binding && binding.connectionId === props.connectionId ? (
+                <Banner tone="success">
+                  {t('projectBound')
+                    .replace('{name}', binding.connectionName ?? binding.connectionId)
+                    .replace('{database}', binding.database)}
+                </Banner>
+              ) : (
+                <Banner>{t('projectUnbound')}</Banner>
+              )}
+              <Banner>{store.meta.allowWrites ? t('writesEnabled') : t('readOnlyForAgent')}</Banner>
+            </div>
+          </Card>
+        </div>
+        <div className="dg-section">
+          <Card size="small" title={t('schema')}>
+            {props.schemas.length > 0 ? (
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                {props.schemas.map((schema) => (
+                  <Tag key={schema} color="blue" icon="folder">
+                    <span className="dg-mono">{schema}</span>
+                  </Tag>
+                ))}
+              </div>
+            ) : (
+              <div className="dg-muted">default</div>
+            )}
+          </Card>
         </div>
       </div>
     </div>

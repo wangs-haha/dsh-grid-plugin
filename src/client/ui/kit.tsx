@@ -1,4 +1,7 @@
-/** Reusable primitives: the panel never re-declares a button or a dialog. */
+/**
+ * Reusable Ant Design styled primitives: buttons, forms, cards, dividers, layout splitters and dialogs.
+ * Built following Ant Design 5.0 design specifications while adapting cleanly to the DSH environment.
+ */
 
 import { useEffect, useRef, type CSSProperties, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
@@ -62,37 +65,55 @@ export function Icon({ name, size = 14 }: { name: string; size?: number }): JSX.
 }
 
 /* -------------------------------------------------------------------------- */
-/* Controls                                                                    */
+/* Buttons (Ant Design 5 Button specification)                                 */
 /* -------------------------------------------------------------------------- */
 
-type ButtonVariant = 'default' | 'primary' | 'danger' | 'ghost' | 'tonal'
+type ButtonVariant = 'default' | 'primary' | 'danger' | 'ghost' | 'tonal' | 'dashed' | 'link' | 'text'
+type ButtonSize = 'sm' | 'md' | 'lg'
 
 export function Button(props: {
   children?: ReactNode
   onClick?: (event: React.MouseEvent<HTMLButtonElement>) => void
   variant?: ButtonVariant
-  size?: 'sm' | 'md'
+  size?: ButtonSize
   disabled?: boolean
   active?: boolean
+  loading?: boolean
   title?: string
   className?: string
   type?: 'button' | 'submit'
+  icon?: string
+  block?: boolean
+  style?: CSSProperties
 }): JSX.Element {
-  const classes = ['dg-btn']
+  const classes = ['dg-btn', 'ant-btn']
   if (props.className) classes.push(props.className)
-  if (props.variant && props.variant !== 'default') classes.push(`dg-btn-${props.variant}`)
-  if (props.size === 'sm') classes.push('dg-btn-sm')
-  if (props.active) classes.push('dg-btn-active')
+  if (props.variant && props.variant !== 'default') {
+    classes.push(`dg-btn-${props.variant}`)
+    classes.push(`ant-btn-${props.variant}`)
+  } else {
+    classes.push('ant-btn-default')
+  }
+  if (props.size) {
+    classes.push(`dg-btn-${props.size}`)
+    classes.push(`ant-btn-${props.size}`)
+  }
+  if (props.active) classes.push('dg-btn-active', 'ant-btn-active')
+  if (props.loading) classes.push('ant-btn-loading')
+  if (props.block) classes.push('ant-btn-block')
+
   return (
     <button
       type={props.type ?? 'button'}
       className={classes.join(' ')}
       onClick={props.onClick}
-      disabled={props.disabled}
+      disabled={props.disabled || props.loading}
       title={props.title}
       aria-label={props.title}
       aria-pressed={props.active}
+      style={props.style}
     >
+      {props.loading ? <Spinner /> : props.icon ? <Icon name={props.icon} size={props.size === 'sm' ? 11 : 13} /> : null}
       {props.children}
     </button>
   )
@@ -105,11 +126,13 @@ export function IconButton(props: {
   disabled?: boolean
   active?: boolean
   size?: number
+  className?: string
+  variant?: 'default' | 'text' | 'primary'
 }): JSX.Element {
   return (
     <button
       type="button"
-      className={`dg-iconbtn${props.active ? ' dg-btn-active' : ''}`}
+      className={`dg-iconbtn ant-btn ant-btn-icon-only${props.active ? ' dg-btn-active' : ''}${props.className ? ` ${props.className}` : ''}`}
       title={props.title}
       aria-label={props.title}
       onClick={props.onClick}
@@ -120,65 +143,226 @@ export function IconButton(props: {
   )
 }
 
-export function Field(props: { label: string; hint?: string; wide?: boolean; children?: ReactNode }): JSX.Element {
+/* -------------------------------------------------------------------------- */
+/* Forms & Inputs (Ant Design Form / Input specification)                      */
+/* -------------------------------------------------------------------------- */
+
+export function Field(props: {
+  label: string
+  hint?: string
+  required?: boolean
+  wide?: boolean
+  children?: ReactNode
+  className?: string
+  style?: CSSProperties
+}): JSX.Element {
   return (
-    <label className={`dg-field${props.wide ? ' dg-field-wide' : ''}`}>
-      <span className="dg-field-label">{props.label}</span>
+    <label
+      className={`dg-field ant-form-item${props.wide ? ' dg-field-wide' : ''}${props.required ? ' dg-field-required ant-form-item-required' : ''}${props.className ? ` ${props.className}` : ''}`}
+      style={props.style}
+    >
+      <span className="dg-field-label ant-form-item-label">{props.label}</span>
       {props.children}
-      {props.hint ? <span className="dg-field-hint">{props.hint}</span> : null}
+      {props.hint ? <span className="dg-field-hint ant-form-item-explain">{props.hint}</span> : null}
     </label>
   )
 }
 
 export function Input(props: React.InputHTMLAttributes<HTMLInputElement> & { className?: string }): JSX.Element {
   const { className, ...rest } = props
-  return <input {...rest} className={`dg-input${className ? ` ${className}` : ''}`} />
+  return <input {...rest} className={`dg-input ant-input${className ? ` ${className}` : ''}`} />
 }
 
-/**
- * A multi-line field, for values that do not fit on one line (JSON, notes, SQL).
- *
- * It shares the input styling so a form can mix both without looking assembled
- * from two kits.
- */
 export function TextArea(
   props: React.TextareaHTMLAttributes<HTMLTextAreaElement> & { className?: string },
 ): JSX.Element {
   const { className, ...rest } = props
-  return <textarea {...rest} className={`dg-input dg-textarea${className ? ` ${className}` : ''}`} />
+  return <textarea {...rest} className={`dg-input dg-textarea ant-input ant-input-textarea${className ? ` ${className}` : ''}`} />
 }
 
 export function Select(props: React.SelectHTMLAttributes<HTMLSelectElement>): JSX.Element {
-  return <select {...props} className={`dg-input dg-select${props.className ? ` ${props.className}` : ''}`} />
+  return <select {...props} className={`dg-input dg-select ant-select${props.className ? ` ${props.className}` : ''}`} />
 }
 
-export function Spinner({ label }: { label?: string }): JSX.Element {
-  return (
-    <span className="dg-spinner-row">
-      <span className="dg-spinner" aria-hidden />
-      {label ? <span>{label}</span> : null}
-    </span>
-  )
-}
+/* -------------------------------------------------------------------------- */
+/* Cards (Ant Design Card specification)                                       */
+/* -------------------------------------------------------------------------- */
 
-export function Empty({ title, hint, children }: { title: string; hint?: string; children?: ReactNode }): JSX.Element {
+export function Card(props: {
+  title?: ReactNode
+  extra?: ReactNode
+  children?: ReactNode
+  hoverable?: boolean
+  size?: 'default' | 'small'
+  bordered?: boolean
+  className?: string
+  style?: CSSProperties
+  onClick?: (event: React.MouseEvent<HTMLDivElement>) => void
+}): JSX.Element {
+  const classes = ['dg-card', 'ant-card']
+  if (props.hoverable) classes.push('dg-card-hoverable', 'ant-card-hoverable')
+  if (props.size === 'small') classes.push('dg-card-sm', 'ant-card-small')
+  if (props.bordered === false) classes.push('ant-card-borderless')
+  if (props.className) classes.push(props.className)
+
   return (
-    <div className="dg-empty">
-      <div className="dg-empty-title">{title}</div>
-      {hint ? <div className="dg-empty-hint">{hint}</div> : null}
-      {children}
+    <div className={classes.join(' ')} style={props.style} onClick={props.onClick}>
+      {props.title || props.extra ? (
+        <div className="dg-card-head ant-card-head">
+          <div className="dg-card-head-title ant-card-head-title">{props.title}</div>
+          {props.extra ? <div className="dg-card-extra ant-card-extra">{props.extra}</div> : null}
+        </div>
+      ) : null}
+      <div className="dg-card-body ant-card-body">{props.children}</div>
     </div>
   )
 }
 
-export function Banner(props: { tone?: 'info' | 'error' | 'success'; children?: ReactNode; onClose?: () => void }): JSX.Element | null {
-  if (!props.children) return null
+/* -------------------------------------------------------------------------- */
+/* Dividers & Layout (Ant Design Divider specification)                        */
+/* -------------------------------------------------------------------------- */
+
+export function Divider(props: {
+  type?: 'horizontal' | 'vertical'
+  children?: ReactNode
+  orientation?: 'left' | 'center' | 'right'
+  dashed?: boolean
+  className?: string
+  style?: CSSProperties
+}): JSX.Element {
+  const { type = 'horizontal', orientation = 'center', dashed = false, children, className = '', style } = props
+  if (type === 'vertical') {
+    return <span className={`dg-divider ant-divider dg-divider-vertical ant-divider-vertical${dashed ? ' ant-divider-dashed' : ''} ${className}`} style={style} role="separator" />
+  }
   return (
-    <div className={`dg-banner dg-banner-${props.tone ?? 'info'}`} role="status">
-      <Icon name={props.tone === 'error' ? 'alert' : 'check'} size={12} />
-      <span className="dg-banner-text">{props.children}</span>
-      {props.onClose ? (
-        <button type="button" className="dg-iconbtn dg-iconbtn-tiny" onClick={props.onClose} aria-label="dismiss">
+    <div
+      className={`dg-divider ant-divider dg-divider-horizontal ant-divider-horizontal${children ? ` dg-divider-with-text ant-divider-with-text ant-divider-with-text-${orientation}` : ''}${dashed ? ' ant-divider-dashed' : ''} ${className}`}
+      style={style}
+      role="separator"
+    >
+      {children ? <span className="dg-divider-inner-text ant-divider-inner-text">{children}</span> : null}
+    </div>
+  )
+}
+
+export function Splitter(props: {
+  width: number
+  setWidth: (width: number) => void
+  min: number
+  max: number
+  onDragging?: (dragging: boolean) => void
+}): JSX.Element {
+  const start = (event: React.MouseEvent): void => {
+    event.preventDefault()
+    const startX = event.clientX
+    const startWidth = props.width
+    props.onDragging?.(true)
+    const move = (moveEvent: MouseEvent): void => {
+      props.setWidth(Math.max(props.min, Math.min(props.max, startWidth + moveEvent.clientX - startX)))
+    }
+    const up = (): void => {
+      props.onDragging?.(false)
+      window.removeEventListener('mousemove', move)
+      window.removeEventListener('mouseup', up)
+    }
+    window.addEventListener('mousemove', move)
+    window.addEventListener('mouseup', up)
+  }
+  return <div className="dg-split" role="separator" aria-orientation="vertical" onMouseDown={start} />
+}
+
+/* -------------------------------------------------------------------------- */
+/* Tags & Badges (Ant Design Tag & Badge specification)                        */
+/* -------------------------------------------------------------------------- */
+
+export function Tag(props: {
+  children?: ReactNode
+  color?: 'blue' | 'green' | 'gold' | 'red' | 'cyan' | 'purple' | 'default'
+  bordered?: boolean
+  icon?: string
+  className?: string
+  style?: CSSProperties
+  onClick?: () => void
+}): JSX.Element {
+  const colorClass = props.color && props.color !== 'default' ? ` dg-tag-${props.color} ant-tag-${props.color}` : ''
+  return (
+    <span
+      className={`dg-tag ant-tag${colorClass}${props.bordered === false ? ' ant-tag-borderless' : ''}${props.className ? ` ${props.className}` : ''}`}
+      style={props.style}
+      onClick={props.onClick}
+    >
+      {props.icon ? <Icon name={props.icon} size={11} /> : null}
+      {props.children}
+    </span>
+  )
+}
+
+export function Badge(props: {
+  count?: ReactNode
+  status?: 'success' | 'processing' | 'default' | 'error' | 'warning'
+  text?: ReactNode
+  children?: ReactNode
+  className?: string
+}): JSX.Element {
+  if (props.status || props.text) {
+    return (
+      <span className={`dg-badge-status ant-badge ant-badge-status${props.className ? ` ${props.className}` : ''}`}>
+        <span className={`dg-badge-status-dot ant-badge-status-dot dg-badge-status-${props.status ?? 'default'} ant-badge-status-${props.status ?? 'default'}`} />
+        {props.text ? <span className="dg-badge-status-text ant-badge-status-text">{props.text}</span> : null}
+        {props.children}
+      </span>
+    )
+  }
+  return (
+    <span className={`dg-badge ant-badge${props.className ? ` ${props.className}` : ''}`}>
+      {props.children}
+      {props.count !== undefined ? <sup className="ant-badge-count">{props.count}</sup> : null}
+    </span>
+  )
+}
+
+export function StatusDot({ status }: { status: 'closed' | 'opening' | 'open' | 'error' }): JSX.Element {
+  const suffix = status === 'open' ? ' dg-dot-open ant-badge-status-success' : status === 'error' ? ' dg-dot-error ant-badge-status-error' : status === 'opening' ? ' dg-dot-busy ant-badge-status-processing' : ' ant-badge-status-default'
+  return <span className={`dg-dot${suffix}`} />
+}
+
+/* -------------------------------------------------------------------------- */
+/* Alerts & Banners (Ant Design Alert specification)                           */
+/* -------------------------------------------------------------------------- */
+
+export function Alert(props: {
+  type?: 'info' | 'success' | 'warning' | 'error'
+  message?: ReactNode
+  description?: ReactNode
+  showIcon?: boolean
+  closable?: boolean
+  onClose?: () => void
+  className?: string
+  style?: CSSProperties
+  children?: ReactNode
+}): JSX.Element | null {
+  const type = props.type ?? 'info'
+  const content = props.children ?? props.message
+  if (!content) return null
+  const iconName = type === 'error' ? 'alert' : type === 'warning' ? 'alert' : type === 'success' ? 'check' : 'info'
+
+  return (
+    <div
+      className={`dg-banner ant-alert dg-banner-${type} ant-alert-${type}${props.description ? ' ant-alert-with-description' : ''}${props.className ? ` ${props.className}` : ''}`}
+      style={props.style}
+      role="alert"
+    >
+      {props.showIcon !== false ? (
+        <span className="ant-alert-icon">
+          <Icon name={iconName} size={props.description ? 16 : 14} />
+        </span>
+      ) : null}
+      <div className="ant-alert-content">
+        <div className="dg-banner-text ant-alert-message">{content}</div>
+        {props.description ? <div className="ant-alert-description">{props.description}</div> : null}
+      </div>
+      {props.closable || props.onClose ? (
+        <button type="button" className="dg-iconbtn dg-iconbtn-tiny ant-alert-close-icon" onClick={props.onClose} aria-label="close">
           <Icon name="x" size={10} />
         </button>
       ) : null}
@@ -186,34 +370,66 @@ export function Banner(props: { tone?: 'info' | 'error' | 'success'; children?: 
   )
 }
 
+export function Banner(props: {
+  tone?: 'info' | 'error' | 'success' | 'warning'
+  children?: ReactNode
+  onClose?: () => void
+}): JSX.Element | null {
+  return <Alert type={props.tone ?? 'info'} onClose={props.onClose} children={props.children} />
+}
+
+/* -------------------------------------------------------------------------- */
+/* Other Ant Design Primitives (Segmented, Empty, Spin)                        */
+/* -------------------------------------------------------------------------- */
+
 export function Segmented<T extends string>(props: {
   value: T
   options: Array<{ value: T; label: string }>
   onChange: (value: T) => void
+  size?: 'sm' | 'md'
 }): JSX.Element {
   return (
-    <div className="dg-seg">
-      {props.options.map((option) => (
-        <button
-          key={option.value}
-          type="button"
-          className={option.value === props.value ? 'dg-seg-on' : ''}
-          onClick={() => props.onChange(option.value)}
-        >
-          {option.label}
-        </button>
-      ))}
+    <div className={`dg-seg ant-segmented${props.size === 'sm' ? ' ant-segmented-sm' : ''}`}>
+      <div className="ant-segmented-group">
+        {props.options.map((option) => (
+          <button
+            key={option.value}
+            type="button"
+            className={`ant-segmented-item${option.value === props.value ? ' dg-seg-on ant-segmented-item-selected' : ''}`}
+            onClick={() => props.onChange(option.value)}
+          >
+            {option.label}
+          </button>
+        ))}
+      </div>
     </div>
   )
 }
 
-export function StatusDot({ status }: { status: 'closed' | 'opening' | 'open' | 'error' }): JSX.Element {
-  const suffix = status === 'open' ? ' dg-dot-open' : status === 'error' ? ' dg-dot-error' : status === 'opening' ? ' dg-dot-busy' : ''
-  return <span className={`dg-dot${suffix}`} />
+export function Spinner({ label }: { label?: string }): JSX.Element {
+  return (
+    <span className="dg-spinner-row ant-spin ant-spin-spinning">
+      <span className="dg-spinner ant-spin-dot" aria-hidden />
+      {label ? <span className="ant-spin-text">{label}</span> : null}
+    </span>
+  )
+}
+
+export function Empty({ title, hint, children }: { title: string; hint?: string; children?: ReactNode }): JSX.Element {
+  return (
+    <div className="dg-empty ant-empty">
+      <div className="ant-empty-image">
+        <Icon name="database" size={36} />
+      </div>
+      <div className="dg-empty-title ant-empty-description">{title}</div>
+      {hint ? <div className="dg-empty-hint">{hint}</div> : null}
+      {children ? <div className="ant-empty-footer">{children}</div> : null}
+    </div>
+  )
 }
 
 /* -------------------------------------------------------------------------- */
-/* Overlays                                                                    */
+/* Overlays (Ant Design Modal & Menu specification)                            */
 /* -------------------------------------------------------------------------- */
 
 export function Modal(props: {
@@ -227,10 +443,6 @@ export function Modal(props: {
   busy?: boolean
 }): JSX.Element {
   const closeRef = useRef<HTMLButtonElement>(null)
-  // Callers pass inline closures, so both the Escape handler and the initial
-  // focus have to read the latest values through refs. Making the focus effect
-  // depend on `onClose` re-ran it on every keystroke and pulled focus back to
-  // the close button while the user was typing.
   const onCloseRef = useRef(props.onClose)
   onCloseRef.current = props.onClose
   const busyRef = useRef(props.busy)
@@ -253,20 +465,20 @@ export function Modal(props: {
 
   return createPortal(
     <div
-      className="dg-backdrop"
+      className="dg-backdrop ant-modal-root"
       onMouseDown={(event) => {
         if (event.target === event.currentTarget && !props.busy) props.onClose()
       }}
     >
       <div
-        className="dg-modal"
-        style={{ width: `${props.width ?? 520}px` }}
+        className="dg-modal ant-modal"
+        style={{ width: `${props.width ?? 560}px` }}
         role="dialog"
         aria-modal="true"
         aria-label={props.title}
       >
-        <div className="dg-modal-head">
-          <div className="dg-modal-title-wrap">
+        <div className="dg-modal-head ant-modal-header">
+          <div className="dg-modal-title-wrap ant-modal-title">
             {props.icon ? (
               <span className="dg-modal-icon-badge">
                 <Icon name={props.icon} size={15} />
@@ -280,15 +492,15 @@ export function Modal(props: {
           <button
             ref={closeRef}
             type="button"
-            className="dg-iconbtn"
+            className="dg-iconbtn ant-modal-close"
             onClick={() => !props.busy && props.onClose()}
             aria-label="close"
           >
             <Icon name="x" size={13} />
           </button>
         </div>
-        <div className="dg-modal-body">{props.children}</div>
-        {props.footer ? <div className="dg-modal-foot">{props.footer}</div> : null}
+        <div className="dg-modal-body ant-modal-body">{props.children}</div>
+        {props.footer ? <div className="dg-modal-foot ant-modal-footer">{props.footer}</div> : null}
       </div>
     </div>,
     document.body,
@@ -327,22 +539,22 @@ export function Menu(props: { x: number; y: number; items: MenuItem[]; onClose: 
   return createPortal(
     <div
       ref={ref}
-      className="dg-ctxmenu"
+      className="dg-ctxmenu ant-dropdown-menu"
       role="menu"
       style={{
         left: `${Math.min(props.x, window.innerWidth - 200)}px`,
-        top: `${Math.min(props.y, Math.max(8, window.innerHeight - 40 - items.length * 26))}px`,
+        top: `${Math.min(props.y, Math.max(8, window.innerHeight - 40 - items.length * 28))}px`,
       }}
     >
       {items.map((item, index) =>
         item.separator ? (
-          <div key={`sep-${index}`} className="dg-ctxsep" />
+          <div key={`sep-${index}`} className="dg-ctxsep ant-dropdown-menu-item-divider" />
         ) : (
           <button
             key={`${item.label}-${index}`}
             type="button"
             role="menuitem"
-            className={`dg-ctxitem${item.danger ? ' dg-ctxitem-danger' : ''}`}
+            className={`dg-ctxitem ant-dropdown-menu-item${item.danger ? ' dg-ctxitem-danger ant-dropdown-menu-item-danger' : ''}`}
             disabled={item.disabled}
             onClick={() => {
               props.onClose()
@@ -358,32 +570,6 @@ export function Menu(props: { x: number; y: number; items: MenuItem[]; onClose: 
     </div>,
     document.body,
   )
-}
-
-export function Splitter(props: {
-  width: number
-  setWidth: (width: number) => void
-  min: number
-  max: number
-  onDragging?: (dragging: boolean) => void
-}): JSX.Element {
-  const start = (event: React.MouseEvent): void => {
-    event.preventDefault()
-    const startX = event.clientX
-    const startWidth = props.width
-    props.onDragging?.(true)
-    const move = (moveEvent: MouseEvent): void => {
-      props.setWidth(Math.max(props.min, Math.min(props.max, startWidth + moveEvent.clientX - startX)))
-    }
-    const up = (): void => {
-      props.onDragging?.(false)
-      window.removeEventListener('mousemove', move)
-      window.removeEventListener('mouseup', up)
-    }
-    window.addEventListener('mousemove', move)
-    window.addEventListener('mouseup', up)
-  }
-  return <div className="dg-split" role="separator" aria-orientation="vertical" onMouseDown={start} />
 }
 
 export function style(properties: CSSProperties): CSSProperties {
